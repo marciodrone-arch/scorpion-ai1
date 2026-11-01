@@ -12,14 +12,12 @@ export async function POST(req: Request) {
       );
     }
 
-    // Formata o histórico de mensagens para a API do Google Gemini
     const formattedContents = messages.map((m: { role: string; content: string }) => ({
       role: m.role === 'assistant' ? 'model' : 'user',
       parts: [{ text: m.content }]
     }));
 
-    // Chamada oficial à API do Google Gemini
-    const response =. await fetch(
+    const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
       {
         method: 'POST',
