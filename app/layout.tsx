@@ -1,9 +1,9 @@
 import './globals.css';
-import type { Metadata } from 'metadata';
+import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
   title: 'ScorpionAI - Inteligência Artificial Comercial',
-  description: 'Plataforma profissional de IA para negócios.',
+  description: 'Painel Comercial de Inteligência Artificial'
 };
 
 export default function RootLayout({
