@@ -15,8 +15,13 @@ export async function POST(req: Request) {
 
     const genAI = new GoogleGenerativeAI(apiKey);
     
-    // Lista com os nomes de modelos padrão e ativos do Gemini
-    const modelsToTry = ['gemini-2.0-flash', 'gemini-1.5-flash-latest'];
+    // Lista de modelos suportados e universais da API Gemini
+    const modelsToTry = [
+      'gemini-flash-latest',
+      'gemini-pro-latest',
+      'gemini-2.0-flash',
+    ];
+
     let text = '';
     let lastError = null;
 
@@ -28,12 +33,12 @@ export async function POST(req: Request) {
         if (text) break;
       } catch (err: any) {
         lastError = err;
-        console.warn(`Modelo ${modelName} indisponível, a tentar o próximo...`);
+        console.warn(`Tentando próximo modelo após falha em ${modelName}...`);
       }
     }
 
     if (!text) {
-      throw lastError || new Error('Não foi possível obter resposta da IA.');
+      throw lastError || new Error('Não foi possível conectar aos modelos da IA.');
     }
 
     return NextResponse.json({ reply: text });
