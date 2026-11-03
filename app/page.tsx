@@ -32,10 +32,10 @@ export default function Home() {
 
       const data = await res.json();
 
-      if (res.ok) {
+      if (res.ok && data.reply) {
         setMessages((prev) => [...prev, { role: 'assistant', content: data.reply }]);
       } else {
-        setMessages((prev) => [...prev, { role: 'assistant', content: `Erro: ${data.error || 'Não foi possível obter resposta.'}` }]);
+        setMessages((prev) => [...prev, { role: 'assistant', content: `Erro: ${data.error || 'Falha ao obter resposta.'}` }]);
       }
     } catch (err) {
       setMessages((prev) => [...prev, { role: 'assistant', content: 'Erro de conexão com o servidor.' }]);
