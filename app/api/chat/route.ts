@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 export async function POST(req: Request) {
   try {
-    const { messages } = await req.json();
+    const { message } = await req.json();
     const apiKey = process.env.GEMINI_API_KEY;
 
     if (!apiKey) {
@@ -12,39 +13,19 @@ export async function POST(req: Request) {
       );
     }
 
-    const formattedContents = messages.map((m: { role: string; content: string }) => ({
-      role: m.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: m.content }]
-    }));
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: formattedContents,
-          systemInstruction: {
-            parts: [
-              {
-                text: 'Você é a ScorpionAI, uma inteligência artificial comercial, objetiva, profissional e amigável. Responda sempre em Português do Brasil com excelente formatação em Markdown.'
-              }
-            ]
-          }
-        })
-      }
-    );
+    const result = await model.generateContent(message);
+    const response = await result.response;
+    const text = response.text();
 
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.error?.message || 'Erro ao processar mensagem na IA.');
-    }
-
-    const replyText = data.candidates?.[0]?.content?.parts?.[0]?.text || 'Sem resposta da IA.';
-
-    return NextResponse.json({ role: 'assistant', content: replyText });
+    return NextResponse.json({ reply: text });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('Erro na API Gemini:', error);
+    return NextResponse.json(
+      { error: error.message || 'Erro ao processar resposta da IA.' },
+      { status: 500 }
+    );
   }
 }
