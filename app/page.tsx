@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import { useState } from 'react';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -9,126 +9,107 @@ interface Message {
 
 export default function Home() {
   const [messages, setMessages] = useState<Message[]>([
-    {
-      role: 'assistant',
-      content: 'Olá! Sou a **ScorpionAI**. Como posso ajudar o seu negócio hoje?'
-    }
+    { role: 'assistant', content: 'Olá! Sou a ScorpionAI. Como posso ajudar o seu negócio hoje?' }
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const chatEndRef = useRef<HTMLDivElement>(null);
-
-  const scrollToBottom = () => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages, loading]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || loading) return;
 
-    const userMsg = input.trim();
-    const newMessages: Message[] = [...messages, { role: 'user', content: userMsg }];
-    
-    setMessages(newMessages);
+    const userMessage = input.trim();
     setInput('');
+    setMessages((prev) => [...prev, { role: 'user', content: userMessage }]);
     setLoading(true);
 
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: newMessages })
+        body: JSON.stringify({ message: userMessage }),
       });
 
       const data = await res.json();
 
-      if (!res.ok) {
-        throw new Error(data.error || 'Erro na requisição');
+      if (res.ok) {
+        setMessages((prev) => [...prev, { role: 'assistant', content: data.reply }]);
+      } else {
+        setMessages((prev) => [...prev, { role: 'assistant', content: `Erro: ${data.error || 'Não foi possível obter resposta.'}` }]);
       }
-
-      setMessages([...newMessages, { role: 'assistant', content: data.content }]);
-    } catch (err: any) {
-      setMessages([
-        ...newMessages,
-        { role: 'assistant', content: `⚠️ **Erro:** ${err.message || 'Falha ao conectar com o servidor.'}` }
-      ]);
+    } catch (err) {
+      setMessages((prev) => [...prev, { role: 'assistant', content: 'Erro de conexão com o servidor.' }]);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <main className="flex flex-col h-screen bg-slate-950 text-slate-100 font-sans">
-      {/* Header */}
-      <header className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-900/50 backdrop-blur">
-        <div className="flex items-center space-x-3">
-          <div className="w-9 h-9 rounded-lg bg-amber-500 flex items-center justify-center font-bold text-slate-950 text-xl shadow-lg shadow-amber-500/20">
-            🦂
-          </div>
+    <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-between p-4 md:p-8">
+      {/* Cabeçalho */}
+      <header className="w-full max-w-4xl flex items-center justify-between border-b border-slate-800 pb-4 mb-6">
+        <div className="flex items-center gap-3">
+          <span className="text-3xl">🦂</span>
           <div>
-            <h1 className="font-bold text-lg tracking-wide text-slate-100">ScorpionAI</h1>
+            <h1 className="text-2xl font-bold tracking-tight bg-gradient-to-r from-red-500 to-amber-500 bg-clip-text text-transparent">
+              ScorpionAI
+            </h1>
             <p className="text-xs text-slate-400">Painel Comercial de Inteligência Artificial</p>
           </div>
         </div>
-        <div className="flex items-center space-x-2">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-          <span className="text-xs text-slate-400 font-medium">Sistema Ativo</span>
-        </div>
+        <span className="text-xs px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-medium">
+          ● Sistema Ativo
+        </span>
       </header>
 
-      {/* Area de Mensagens */}
-      <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 max-w-4xl w-full mx-auto">
-        {messages.map((m, index) => (
+      {/* Caixa de Conversação */}
+      <div className="w-full max-w-4xl flex-1 bg-slate-900/50 border border-slate-800 rounded-2xl p-4 md:p-6 mb-4 overflow-y-auto max-h-[60vh] flex flex-col gap-4 shadow-xl backdrop-blur-sm">
+        {messages.map((msg, index) => (
           <div
             key={index}
-            className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
+            className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             <div
-              className={`max-w-[85%] md:max-w-[75%] rounded-2xl px-5 py-3.5 shadow-sm text-sm leading-relaxed ${
-                m.role === 'user'
-                  ? 'bg-amber-500 text-slate-950 font-medium rounded-br-none'
-                  : 'bg-slate-900 border border-slate-800 text-slate-200 rounded-bl-none'
+              className={`max-w-[85%] md:max-w-[75%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
+                msg.role === 'user'
+                  ? 'bg-red-600 text-white rounded-br-none shadow-md'
+                  : 'bg-slate-800 text-slate-200 rounded-bl-none border border-slate-700/50'
               }`}
             >
-              <div className="whitespace-pre-wrap">{m.content}</div>
+              {msg.content}
             </div>
           </div>
         ))}
-
         {loading && (
           <div className="flex justify-start">
-            <div className="bg-slate-900 border border-slate-800 text-slate-400 rounded-2xl rounded-bl-none px-5 py-3.5 text-sm flex items-center space-x-2">
-              <span className="animate-spin">⏳</span>
-              <span>ScorpionAI está processando...</span>
+            <div className="bg-slate-800 text-slate-400 rounded-2xl rounded-bl-none px-4 py-3 text-sm border border-slate-700/50 animate-pulse">
+              ScorpionAI está a pensar...
             </div>
           </div>
         )}
-        <div ref={chatEndRef} />
       </div>
 
-      {/* Input de Envio */}
-      <div className="p-4 border-t border-slate-800 bg-slate-900/30">
-        <form onSubmit={handleSubmit} className="max-w-4xl mx-auto flex gap-2">
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Digite sua mensagem para a ScorpionAI..."
-            className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500/50 transition"
-          />
-          <button
-            type="submit"
-            disabled={loading || !input.trim()}
-            className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold px-6 py-3 rounded-xl text-sm transition disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-amber-500/10"
-          >
-            Enviar
-          </button>
-        </form>
-      </div>
+      {/* Barra de Envio */}
+      <form onSubmit={handleSubmit} className="w-full max-w-4xl flex gap-3">
+        <input
+          type="text"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          placeholder="Digite sua mensagem comercial..."
+          className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-4 py-3.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 transition-all shadow-inner"
+        />
+        <button
+          type="submit"
+          disabled={loading}
+          className="bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white font-medium px-6 py-3.5 rounded-xl text-sm transition-all shadow-lg hover:shadow-red-500/20 disabled:opacity-50 cursor-pointer"
+        >
+          Enviar
+        </button>
+      </form>
+
+      <footer className="w-full max-w-4xl text-center mt-6 text-xs text-slate-500 border-t border-slate-900 pt-4">
+        ScorpionAI Comercial &copy; 2026 — Todos os direitos reservados.
+      </footer>
     </main>
   );
 }
