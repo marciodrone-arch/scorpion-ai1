@@ -15,8 +15,8 @@ export async function POST(req: Request) {
 
     const genAI = new GoogleGenerativeAI(apiKey);
     
-    // Lista de modelos em ordem de prioridade para garantir zero falhas
-    const modelsToTry = ['gemini-3.8-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'];
+    // Lista com os nomes de modelos padrão e ativos do Gemini
+    const modelsToTry = ['gemini-2.0-flash', 'gemini-1.5-flash-latest'];
     let text = '';
     let lastError = null;
 
@@ -25,15 +25,15 @@ export async function POST(req: Request) {
         const model = genAI.getGenerativeModel({ model: modelName });
         const result = await model.generateContent(message);
         text = result.response.text();
-        if (text) break; // Se obteve resposta com sucesso, sai do loop
+        if (text) break;
       } catch (err: any) {
         lastError = err;
-        console.warn(`Modelo ${modelName} falhou, tentando o próximo...`);
+        console.warn(`Modelo ${modelName} indisponível, a tentar o próximo...`);
       }
     }
 
     if (!text) {
-      throw lastError || new Error('Todos os modelos falharam temporariamente.');
+      throw lastError || new Error('Não foi possível obter resposta da IA.');
     }
 
     return NextResponse.json({ reply: text });
