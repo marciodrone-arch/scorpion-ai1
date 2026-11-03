@@ -14,10 +14,27 @@ export async function POST(req: Request) {
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: 'gemini-3.8-flash' });
+    
+    // Lista de modelos em ordem de prioridade para garantir zero falhas
+    const modelsToTry = ['gemini-3.8-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'];
+    let text = '';
+    let lastError = null;
 
-    const result = await model.generateContent(message);
-    const text = result.response.text();
+    for (const modelName of modelsToTry) {
+      try {
+        const model = genAI.getGenerativeModel({ model: modelName });
+        const result = await model.generateContent(message);
+        text = result.response.text();
+        if (text) break; // Se obteve resposta com sucesso, sai do loop
+      } catch (err: any) {
+        lastError = err;
+        console.warn(`Modelo ${modelName} falhou, tentando o próximo...`);
+      }
+    }
+
+    if (!text) {
+      throw lastError || new Error('Todos os modelos falharam temporariamente.');
+    }
 
     return NextResponse.json({ reply: text });
   } catch (error: any) {
