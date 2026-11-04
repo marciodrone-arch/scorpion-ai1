@@ -12,48 +12,60 @@ export async function POST(req: Request) {
       );
     }
 
-    // Chamada direta utilizando o modelo atual exigido pela API do Google
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [{ text: message }],
+    // Lista de modelos ordenados por prioridade (se um falhar/estiver lotado, tenta o próximo)
+    const modelsToTry = [
+      'gemini-2.5-flash',
+      'gemini-2.0-flash',
+      'gemini-1.5-flash'
+    ];
+
+    let lastErrorMessage = '';
+
+    for (const modelName of modelsToTry) {
+      try {
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
             },
-          ],
-        }),
+            body: JSON.stringify({
+              contents: [
+                {
+                  parts: [{ text: message }],
+                },
+              ],
+            }),
+          }
+        );
+
+        const data = await response.json();
+
+        // Se o modelo aceitou e respondeu com sucesso
+        if (response.ok && data.candidates?.[0]?.content?.parts?.[0]?.text) {
+          const replyText = data.candidates[0].content.parts[0].text;
+          return NextResponse.json({ reply: replyText });
+        }
+
+        // Caso a API retorne um erro (como sobrecarga 503/429 ou 404), guarda e tenta o próximo modelo
+        lastErrorMessage = data.error?.message || `Erro no modelo ${modelName}`;
+        console.warn(`Modelo ${modelName} indisponível. Tentando alternativa...`);
+      } catch (err: any) {
+        lastErrorMessage = err.message || 'Falha de conexão.';
       }
+    }
+
+    // Se todos os modelos da lista estiverem indisponíveis
+    return NextResponse.json(
+      { error: 'Servidores da IA em alta demanda no momento. Por favor, tente em alguns instantes.' },
+      { status: 503 }
     );
 
-    const data = await response.json();
-
-    if (!response.ok) {
-      console.error('Erro na API Google:', data);
-      return NextResponse.json(
-        { error: data.error?.message || 'Erro de comunicação com a API do Gemini.' },
-        { status: response.status }
-      );
-    }
-
-    const replyText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-    if (!replyText) {
-      return NextResponse.json(
-        { error: 'Resposta vazia retornada pela IA.' },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json({ reply: replyText });
   } catch (error: any) {
-    console.error('Erro interno do servidor:', error);
+    console.error('Erro interno:', error);
     return NextResponse.json(
-      { error: error.message || 'Erro interno ao processar a resposta.' },
+      { error: 'Erro interno ao processar a requisição.' },
       { status: 500 }
     );
   }
