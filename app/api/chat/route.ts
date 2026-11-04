@@ -8,30 +8,41 @@ export async function POST(req: Request) {
 
     if (!apiKey) {
       return NextResponse.json(
-        { error: 'Chave API não encontrada nas variáveis da Vercel.' },
+        { error: 'Chave API GEMINI_API_KEY não configurada na Vercel.' },
         { status: 500 }
       );
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);
     
-    // Tenta carregar o modelo suportado pela API
-    let model;
-    try {
-      model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
-    } catch {
-      model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    // Lista de modelos suportados para tentar em sequência
+    const candidateModels = ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'];
+    let lastError: any = null;
+    let replyText: string | null = null;
+
+    for (const modelName of candidateModels) {
+      try {
+        const model = genAI.getGenerativeModel({ model: modelName });
+        const result = await model.generateContent(message);
+        const response = await result.response;
+        replyText = response.text();
+        if (replyText) break; // Sucesso! Sai do loop.
+      } catch (err) {
+        lastError = err;
+        console.warn(`Falha no modelo ${modelName}, tentando o próximo...`);
+      }
     }
 
-    const result = await model.generateContent(message);
-    const response = await result.response;
-    const text = response.text();
+    if (replyText) {
+      return NextResponse.json({ reply: replyText });
+    }
 
-    return NextResponse.json({ reply: text });
+    throw lastError || new Error('Nenhum modelo Gemini respondeu.');
+
   } catch (error: any) {
-    console.error('Erro Gemini:', error);
+    console.error('Erro na API Gemini:', error);
     return NextResponse.json(
-      { error: error.message || 'Erro ao processar resposta.' },
+      { error: error.message || 'Erro interno ao processar a resposta.' },
       { status: 500 }
     );
   }
