@@ -35,7 +35,7 @@ export default function Home() {
       if (res.ok && data.reply) {
         setMessages((prev) => [...prev, { role: 'assistant', content: data.reply }]);
       } else {
-        setMessages((prev) => [...prev, { role: 'assistant', content: `Erro: ${data.error || 'Falha ao obter resposta.'}` }]);
+        setMessages((prev) => [...prev, { role: 'assistant', content: `Erro: ${data.error || 'Falha ao processar a mensagem.'}` }]);
       }
     } catch (err) {
       setMessages((prev) => [...prev, { role: 'assistant', content: 'Erro de conexão com o servidor.' }]);
