@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { GoogleGenerativeAI } from '@google/generative-ai';
 
 export async function POST(req: Request) {
   try {
@@ -8,39 +7,51 @@ export async function POST(req: Request) {
 
     if (!apiKey) {
       return NextResponse.json(
-        { error: 'Chave API GEMINI_API_KEY não configurada na Vercel.' },
+        { error: 'Chave GEMINI_API_KEY não configurada na Vercel.' },
         { status: 500 }
       );
     }
 
-    const genAI = new GoogleGenerativeAI(apiKey);
-    
-    // Lista de modelos suportados para tentar em sequência
-    const candidateModels = ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'];
-    let lastError: any = null;
-    let replyText: string | null = null;
-
-    for (const modelName of candidateModels) {
-      try {
-        const model = genAI.getGenerativeModel({ model: modelName });
-        const result = await model.generateContent(message);
-        const response = await result.response;
-        replyText = response.text();
-        if (replyText) break; // Sucesso! Sai do loop.
-      } catch (err) {
-        lastError = err;
-        console.warn(`Falha no modelo ${modelName}, tentando o próximo...`);
+    // Chamada REST direta sem depender do SDK
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [{ text: message }],
+            },
+          ],
+        }),
       }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      console.error('Erro na API Google:', data);
+      return NextResponse.json(
+        { error: data.error?.message || 'Erro de comunicação com a API do Gemini.' },
+        { status: response.status }
+      );
     }
 
-    if (replyText) {
-      return NextResponse.json({ reply: replyText });
+    const replyText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+    if (!replyText) {
+      return NextResponse.json(
+        { error: 'Resposta vazia retornada pela IA.' },
+        { status: 500 }
+      );
     }
 
-    throw lastError || new Error('Nenhum modelo Gemini respondeu.');
-
+    return NextResponse.json({ reply: replyText });
   } catch (error: any) {
-    console.error('Erro na API Gemini:', error);
+    console.error('Erro interno do servidor:', error);
     return NextResponse.json(
       { error: error.message || 'Erro interno ao processar a resposta.' },
       { status: 500 }
