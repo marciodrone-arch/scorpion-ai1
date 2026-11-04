@@ -14,20 +14,32 @@ export async function POST(req: Request) {
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    
+    // Lista de modelos padrão e universais para garantir compatibilidade imediata
+    const modelsToTry = ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-pro', 'gemini-1.5-pro'];
+    let text = '';
+    let lastError = null;
 
-    // Envia a mensagem para o Gemini
-    const result = await model.generateContent(message);
-    const response = await result.response;
-    const text = response.text();
+    for (const modelName of modelsToTry) {
+      try {
+        const model = genAI.getGenerativeModel({ model: modelName });
+        const result = await model.generateContent(message);
+        const response = await result.response;
+        text = response.text();
+        if (text) break;
+      } catch (err: any) {
+        lastError = err;
+        console.warn(`Tentativa com ${modelName} falhou, tentando próximo...`);
+      }
+    }
 
     if (!text) {
-      throw new Error('A IA retornou uma resposta vazia.');
+      throw lastError || new Error('Não foi possível obter resposta de nenhum modelo disponível.');
     }
 
     return NextResponse.json({ reply: text });
   } catch (error: any) {
-    console.error('Erro detalhado na API Gemini:', error);
+    console.error('Erro na API Gemini:', error);
     return NextResponse.json(
       { error: error.message || 'Erro ao processar resposta da IA.' },
       { status: 500 }
