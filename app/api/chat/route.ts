@@ -3,69 +3,42 @@ import { NextResponse } from 'next/server';
 export async function POST(req: Request) {
   try {
     const { message } = await req.json();
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = process.env.GROQ_API_KEY || process.env.GEMINI_API_KEY;
 
     if (!apiKey) {
       return NextResponse.json(
-        { error: 'Chave GEMINI_API_KEY não configurada na Vercel.' },
+        { error: 'Chave API não configurada na Vercel.' },
         { status: 500 }
       );
     }
 
-    // Lista de modelos ordenados por prioridade (se um falhar/estiver lotado, tenta o próximo)
-    const modelsToTry = [
-      'gemini-2.5-flash',
-      'gemini-2.0-flash',
-      'gemini-1.5-flash'
-    ];
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'llama-3.3-70b-versatile',
+        messages: [{ role: 'user', content: message }],
+      }),
+    });
 
-    let lastErrorMessage = '';
+    const data = await response.json();
 
-    for (const modelName of modelsToTry) {
-      try {
-        const response = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              contents: [
-                {
-                  parts: [{ text: message }],
-                },
-              ],
-            }),
-          }
-        );
-
-        const data = await response.json();
-
-        // Se o modelo aceitou e respondeu com sucesso
-        if (response.ok && data.candidates?.[0]?.content?.parts?.[0]?.text) {
-          const replyText = data.candidates[0].content.parts[0].text;
-          return NextResponse.json({ reply: replyText });
-        }
-
-        // Caso a API retorne um erro (como sobrecarga 503/429 ou 404), guarda e tenta o próximo modelo
-        lastErrorMessage = data.error?.message || `Erro no modelo ${modelName}`;
-        console.warn(`Modelo ${modelName} indisponível. Tentando alternativa...`);
-      } catch (err: any) {
-        lastErrorMessage = err.message || 'Falha de conexão.';
-      }
+    if (!response.ok) {
+      return NextResponse.json(
+        { error: data.error?.message || 'Erro na API.' },
+        { status: response.status }
+      );
     }
 
-    // Se todos os modelos da lista estiverem indisponíveis
-    return NextResponse.json(
-      { error: 'Servidores da IA em alta demanda no momento. Por favor, tente em alguns instantes.' },
-      { status: 503 }
-    );
+    const replyText = data.choices?.[0]?.message?.content;
+    return NextResponse.json({ reply: replyText });
 
   } catch (error: any) {
-    console.error('Erro interno:', error);
     return NextResponse.json(
-      { error: 'Erro interno ao processar a requisição.' },
+      { error: 'Erro interno ao processar a resposta.' },
       { status: 500 }
     );
   }
