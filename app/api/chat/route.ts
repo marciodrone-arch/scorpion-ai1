@@ -19,7 +19,7 @@ export async function POST(req: Request) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
+        model: 'llama3-8b-8192',
         messages: [{ role: 'user', content: message }],
       }),
     });
@@ -28,7 +28,7 @@ export async function POST(req: Request) {
 
     if (!response.ok) {
       return NextResponse.json(
-        { error: data.error?.message || 'Erro na comunicação com a API.' },
+        { error: data.error?.message || 'Erro na API da Groq.' },
         { status: response.status }
       );
     }
@@ -37,7 +37,7 @@ export async function POST(req: Request) {
 
     if (!replyText) {
       return NextResponse.json(
-        { error: 'Sem resposta da IA.' },
+        { error: 'Resposta vazia da IA.' },
         { status: 500 }
       );
     }
@@ -46,7 +46,7 @@ export async function POST(req: Request) {
 
   } catch (error: any) {
     return NextResponse.json(
-      { error: error.message || 'Erro interno do servidor.' },
+      { error: 'Erro interno ao processar a resposta.' },
       { status: 500 }
     );
   }
