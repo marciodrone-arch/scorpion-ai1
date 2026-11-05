@@ -12,49 +12,41 @@ export async function POST(req: Request) {
       );
     }
 
-    // Modelos ativos e oficialmente suportados pela Groq
-    const groqModels = [
-      'llama-3.3-70b-versatile',
-      'llama3-70b-8192',
-      'llama3-8b-8192'
-    ];
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'llama-3.3-70b-versatile',
+        messages: [{ role: 'user', content: message }],
+      }),
+    });
 
-    let lastErrorMessage = '';
+    const data = await response.json();
 
-    for (const modelName of groqModels) {
-      try {
-        const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${apiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: modelName,
-            messages: [{ role: 'user', content: message }],
-          }),
-        });
-
-        const data = await response.json();
-
-        if (response.ok && data.choices?.[0]?.message?.content) {
-          return NextResponse.json({ reply: data.choices[0].message.content });
-        }
-
-        lastErrorMessage = data.error?.message || `Modelo ${modelName} falhou`;
-      } catch (err: any) {
-        lastErrorMessage = err.message || 'Erro de conexão';
-      }
+    if (!response.ok) {
+      return NextResponse.json(
+        { error: data.error?.message || 'Erro na comunicação com a API.' },
+        { status: response.status }
+      );
     }
 
-    return NextResponse.json(
-      { error: `Erro na API da Groq: ${lastErrorMessage}` },
-      { status: 500 }
-    );
+    const replyText = data.choices?.[0]?.message?.content;
+
+    if (!replyText) {
+      return NextResponse.json(
+        { error: 'Sem resposta da IA.' },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ reply: replyText });
 
   } catch (error: any) {
     return NextResponse.json(
-      { error: 'Erro interno ao processar a resposta.' },
+      { error: error.message || 'Erro interno do servidor.' },
       { status: 500 }
     );
   }
