@@ -12,41 +12,63 @@ export async function POST(req: Request) {
       );
     }
 
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    // Tenta primeiro o modelo oficial mais rápido e ativo da Groq
+    let primaryResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'llama3-8b-8192',
+        model: 'llama-3.1-8b-instant',
         messages: [{ role: 'user', content: message }],
       }),
     });
 
-    const data = await response.json();
+    let data = await primaryResponse.json();
 
-    if (!response.ok) {
-      return NextResponse.json(
-        { error: data.error?.message || 'Erro na API da Groq.' },
-        { status: response.status }
-      );
+    if (primaryResponse.ok && data.choices?.[0]?.message?.content) {
+      return NextResponse.json({ reply: data.choices[0].message.content });
     }
 
-    const replyText = data.choices?.[0]?.message?.content;
+    // Sistema Anti-Erros: Se o modelo padrão falhar, busca automaticamente os modelos ativos na sua conta
+    const modelsResponse = await fetch('https://api.groq.com/openai/v1/models', {
+      headers: { 'Authorization': `Bearer ${apiKey}` },
+    });
+    
+    const modelsData = await modelsResponse.json();
+    const availableModels = modelsData.data?.map((m: any) => m.id) || [];
 
-    if (!replyText) {
-      return NextResponse.json(
-        { error: 'Resposta vazia da IA.' },
-        { status: 500 }
-      );
+    for (const modelId of availableModels) {
+      // Ignora modelos de visão ou áudio
+      if (modelId.includes('guard') || modelId.includes('whisper')) continue;
+
+      const fallbackResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: modelId,
+          messages: [{ role: 'user', content: message }],
+        }),
+      });
+
+      const fallbackData = await fallbackResponse.json();
+      if (fallbackResponse.ok && fallbackData.choices?.[0]?.message?.content) {
+        return NextResponse.json({ reply: fallbackData.choices[0].message.content });
+      }
     }
 
-    return NextResponse.json({ reply: replyText });
+    return NextResponse.json(
+      { error: data.error?.message || 'Nenhum modelo disponível na Groq no momento.' },
+      { status: 500 }
+    );
 
   } catch (error: any) {
     return NextResponse.json(
-      { error: 'Erro interno ao processar a resposta.' },
+      { error: 'Erro interno no servidor.' },
       { status: 500 }
     );
   }
