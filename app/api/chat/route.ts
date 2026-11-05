@@ -19,7 +19,7 @@ export async function POST(req: Request) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
+        model: 'llama-3.1-8b-instant',
         messages: [{ role: 'user', content: message }],
       }),
     });
@@ -28,7 +28,7 @@ export async function POST(req: Request) {
 
     if (!response.ok) {
       return NextResponse.json(
-        { error: data.error?.message || 'Erro na API.' },
+        { error: data.error?.message || 'Erro na API da Groq.' },
         { status: response.status }
       );
     }
