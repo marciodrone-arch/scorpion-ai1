@@ -12,11 +12,11 @@ export async function POST(req: Request) {
       );
     }
 
-    // Lista dos modelos ativos na Groq em ordem de prioridade
+    // Modelos ativos e oficialmente suportados pela Groq
     const groqModels = [
-      'llama3-8b-8192',
       'llama-3.3-70b-versatile',
-      'mixtral-8x7b-32768'
+      'llama3-70b-8192',
+      'llama3-8b-8192'
     ];
 
     let lastErrorMessage = '';
@@ -41,14 +41,14 @@ export async function POST(req: Request) {
           return NextResponse.json({ reply: data.choices[0].message.content });
         }
 
-        lastErrorMessage = data.error?.message || `Modelo ${modelName} indisponível`;
+        lastErrorMessage = data.error?.message || `Modelo ${modelName} falhou`;
       } catch (err: any) {
-        lastErrorMessage = err.message || 'Erro de ligação';
+        lastErrorMessage = err.message || 'Erro de conexão';
       }
     }
 
     return NextResponse.json(
-      { error: `Erro na API: ${lastErrorMessage}` },
+      { error: `Erro na API da Groq: ${lastErrorMessage}` },
       { status: 500 }
     );
 
