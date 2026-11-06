@@ -88,11 +88,12 @@ async function callGemini(message: string) {
     process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
     {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'x-goog-api-key': apiKey,
       },
       body: JSON.stringify({
         systemInstruction: {
@@ -143,11 +144,13 @@ export async function POST(req: Request) {
     }
 
     if (message.length > 12000) {
-      return jsonError('A mensagem ultrapassou o limite permitido.', 400);
+      return jsonError(
+        'A mensagem ultrapassou o limite permitido.',
+        400
+      );
     }
 
     const cleanMessage = message.trim();
-    const lowerMessage = cleanMessage.toLowerCase();
 
     // GERAÇÃO DE IMAGENS
     const imagePattern =
@@ -162,7 +165,10 @@ export async function POST(req: Request) {
         .trim();
 
       if (!promptClean) {
-        return jsonError('Descreva a imagem que deseja criar.', 400);
+        return jsonError(
+          'Descreva a imagem que deseja criar.',
+          400
+        );
       }
 
       const imageUrl =
@@ -189,7 +195,9 @@ export async function POST(req: Request) {
         });
       } catch (error) {
         groqError =
-          error instanceof Error ? error.message : 'Erro desconhecido';
+          error instanceof Error
+            ? error.message
+            : 'Erro desconhecido';
 
         console.error('Falha na Groq:', groqError);
       }
@@ -206,7 +214,9 @@ export async function POST(req: Request) {
         });
       } catch (error) {
         const geminiError =
-          error instanceof Error ? error.message : 'Erro desconhecido';
+          error instanceof Error
+            ? error.message
+            : 'Erro desconhecido';
 
         console.error('Falha no Gemini:', geminiError);
 
