@@ -6,7 +6,7 @@ export async function POST(req: Request) {
     const lowerMsg = message.toLowerCase();
     const apiKey = process.env.GROQ_API_KEY || process.env.GEMINI_API_KEY;
 
-    // Deteta se o usuário pediu para gerar uma imagem/foto
+    // Se for pedido de imagem, gera diretamente sem passar por modelos de texto bloqueados
     const isImageRequest = 
       lowerMsg.includes('gerar imagem') || 
       lowerMsg.includes('crie uma imagem') || 
@@ -17,15 +17,13 @@ export async function POST(req: Request) {
       lowerMsg.includes('desenhe');
 
     if (isImageRequest) {
-      // Limpa os termos de comando e mantém o assunto real do pedido (ex: "um cavalo")
       let promptClean = message
         .replace(/gerar imagem de|crie uma imagem de|foto de|imagem de|preciso de uma imagem de|preciso de uma foto de|desenhe/gi, '')
         .trim();
       
-      if (!promptClean) promptClean = message; // Fallback se limpar demais
+      if (!promptClean) promptClean = message;
 
-      const encodedPrompt = encodeURIComponent(promptClean);
-      const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&nologo=true`;
+      const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(promptClean)}?width=1024&height=1024&nologo=true`;
       
       return NextResponse.json({ 
         reply: `Aqui está a imagem gerada para: "${promptClean}"`,
@@ -40,29 +38,49 @@ export async function POST(req: Request) {
       );
     }
 
-    // Comunicação com o modelo oficial ativo da Groq
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
-        messages: [{ role: 'user', content: message }],
-      }),
+    // Busca dinâmica em tempo real de qualquer modelo disponível na sua chave da Groq
+    const modelsRes = await fetch('https://api.groq.com/openai/v1/models', {
+      headers: { 'Authorization': `Bearer ${apiKey}` },
     });
+    
+    const modelsJson = await modelsRes.json();
+    const modelsList = modelsJson.data?.map((m: any) => m.id) || ['llama3-8b-8192'];
 
-    const data = await response.json();
+    let replyText = null;
+    let lastError = '';
 
-    if (!response.ok) {
+    for (const modelId of modelsList) {
+      if (modelId.includes('guard') || modelId.includes('whisper') || modelId.includes('embedding')) continue;
+
+      const chatRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: modelId,
+          messages: [{ role: 'user', content: message }],
+        }),
+      });
+
+      const chatJson = await chatRes.json();
+
+      if (chatRes.ok && chatJson.choices?.[0]?.message?.content) {
+        replyText = chatJson.choices[0].message.content;
+        break;
+      } else {
+        lastError = chatJson.error?.message || 'Erro desconhecido';
+      }
+    }
+
+    if (!replyText) {
       return NextResponse.json(
-        { error: data.error?.message || 'Erro na API da Groq.' },
-        { status: response.status }
+        { error: `Erro na API: ${lastError}` },
+        { status: 500 }
       );
     }
 
-    const replyText = data.choices?.[0]?.message?.content;
     return NextResponse.json({ reply: replyText });
 
   } catch (error: any) {
