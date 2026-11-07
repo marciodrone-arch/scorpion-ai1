@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { generateGeminiText } from '@/lib/gemini';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 export async function POST(req: Request) {
   try {
@@ -30,25 +30,28 @@ export async function POST(req: Request) {
       });
     }
 
-    // 2. Resposta do Gemini
-    if (process.env.GEMINI_API_KEY) {
-      try {
-        const geminiModel = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
-        const reply = await generateGeminiText(message, geminiModel);
-        return NextResponse.json({ reply });
-      } catch (geminiErr: any) {
-        console.warn('Falha na resposta do Gemini:', geminiErr?.message || geminiErr);
-      }
+    // 2. Resposta Direta do Gemini (sem dependências externas)
+    const apiKey = process.env.GEMINI_API_KEY || '';
+    if (!apiKey) {
+      return NextResponse.json(
+        { error: 'GEMINI_API_KEY não configurada nas variáveis de ambiente da Vercel.' },
+        { status: 500 }
+      );
     }
 
-    return NextResponse.json(
-      { error: 'Não foi possível obter resposta do Gemini.' },
-      { status: 500 }
-    );
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    
+    const result = await model.generateContent(message);
+    const response = await result.response;
+    const reply = response.text();
+
+    return NextResponse.json({ reply });
 
   } catch (error: any) {
+    console.error('Erro na API:', error);
     return NextResponse.json(
-      { error: 'Erro interno no servidor.' },
+      { error: 'Erro interno ao processar a resposta da IA: ' + (error?.message || error) },
       { status: 500 }
     );
   }
