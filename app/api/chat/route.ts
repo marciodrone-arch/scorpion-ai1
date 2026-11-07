@@ -5,7 +5,7 @@ export async function POST(req: Request) {
     const { message, image } = await req.json();
     const lowerMsg = message ? message.toLowerCase() : '';
 
-    // 1. Geração de Imagens via Pollinations.ai (retorno rápido)
+    // Geração de imagens via Pollinations.ai
     const isImageRequest = 
       lowerMsg.includes('gerar imagem') || 
       lowerMsg.includes('crie uma imagem') || 
@@ -27,11 +27,9 @@ export async function POST(req: Request) {
       });
     }
 
-    // 2. Chave de API
     const apiKey = process.env.GEMINI_API_KEY || '';
-
-    // System prompt curto e rápido
-    const systemPrompt = "Você é o ScorpionAI, uma IA ultra-rápida, direta e em Português do Brasil. Responda de forma concisa e objetiva.";
+    const systemPrompt = "Você é o ScorpionAI, uma IA de elite, ultra-rápida, direta e em Português do Brasil. Responda de forma concisa e analítica.";
+    
     const parts: any[] = [{ text: `${systemPrompt}\n\nUsuário: ${message || 'Analise esta solicitação.'}` }];
 
     if (image) {
@@ -46,11 +44,10 @@ export async function POST(req: Request) {
       }
     }
 
-    // 3. Chamada direta ao modelo mais leve e veloz
     if (apiKey) {
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 4000); // 4 segundos max timeout
+        const timeoutId = setTimeout(() => controller.abort(), 6000);
 
         const response = await fetch(
           `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
@@ -67,27 +64,23 @@ export async function POST(req: Request) {
         if (response.ok && data.candidates?.[0]?.content?.parts?.[0]?.text) {
           return NextResponse.json({ reply: data.candidates[0].content.parts[0].text });
         }
-      } catch (err) {
-        // Se der timeout ou erro no Gemini, passa na hora pro fallback rápido abaixo
-      }
+      } catch (err) {}
     }
 
-    // 4. Fallback instantâneo em caso de atraso na chave principal (texto puro)
+    // Fallback leve via Pollinations Text se necessário
     if (!image) {
       try {
         const fallbackRes = await fetch(`https://text.pollinations.ai/${encodeURIComponent(message)}`);
         if (fallbackRes.ok) {
           const fallbackText = await fallbackRes.text();
-          if (fallbackText) {
-            return NextResponse.json({ reply: fallbackText });
-          }
+          if (fallbackText) return NextResponse.json({ reply: fallbackText });
         }
       } catch (e) {}
     }
 
-    return NextResponse.json({ reply: "Oi! Como posso ajudar você agora?" });
+    return NextResponse.json({ reply: "Olá! Como posso ajudar você a otimizar este projeto agora?" });
 
   } catch (error: any) {
-    return NextResponse.json({ reply: "Recebido! Como posso te ajudar?" });
+    return NextResponse.json({ reply: "Sistema pronto. Como posso ajudar?" });
   }
 }
