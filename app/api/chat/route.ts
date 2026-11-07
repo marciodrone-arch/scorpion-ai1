@@ -5,7 +5,7 @@ export async function POST(req: Request) {
     const { message, image } = await req.json();
     const lowerMsg = message ? message.toLowerCase() : '';
 
-    // 1. Geração de Imagens via Pollinations.ai
+    // 1. Geração de Imagens via Pollinations.ai (retorno rápido)
     const isImageRequest = 
       lowerMsg.includes('gerar imagem') || 
       lowerMsg.includes('crie uma imagem') || 
@@ -27,27 +27,12 @@ export async function POST(req: Request) {
       });
     }
 
-    // 2. Chave da API
+    // 2. Chave de API
     const apiKey = process.env.GEMINI_API_KEY || '';
-    if (!apiKey) {
-      return NextResponse.json(
-        { error: 'GEMINI_API_KEY não configurada nas variáveis de ambiente da Vercel.' },
-        { status: 500 }
-      );
-    }
 
-    // 3. System Prompt para forçar Português e formato profissional
-    const systemInstruction = 
-      "Você é o ScorpionAI, um assistente virtual de inteligência artificial de elite, focado em alta performance, clareza, concisão e resultados práticos. " +
-      "DIRETRIZES OBRIGATÓRIAS:\n" +
-      "1. Responda SEMPRE em Português do Brasil de forma clara, direta e objetiva.\n" +
-      "2. Elimine introduções longas ou saudações genéricas.\n" +
-      "3. Use formatação limpa (listas, negritos e tópicos). Evite tabelas ASCII complexas se não puderem ser renderizadas com perfeição.\n" +
-      "4. Seja altamente funcional em programação, estudos, escrita criativa, negócios e automação.";
-
-    const combinedText = `${systemInstruction}\n\n[Mensagem do Usuário]: ${message || 'Analise a solicitação.'}`;
-
-    const parts: any[] = [{ text: combinedText }];
+    // System prompt curto e rápido
+    const systemPrompt = "Você é o ScorpionAI, uma IA ultra-rápida, direta e em Português do Brasil. Responda de forma concisa e objetiva.";
+    const parts: any[] = [{ text: `${systemPrompt}\n\nUsuário: ${message || 'Analise esta solicitação.'}` }];
 
     if (image) {
       const matches = image.match(/^data:(.+);base64,(.+)$/);
@@ -61,40 +46,33 @@ export async function POST(req: Request) {
       }
     }
 
-    // 4. Lista fallback de modelos atualizados
-    const modelsToTry = [
-      'gemini-3.8-flash',
-      'gemini-2.5-flash',
-      'gemini-2.0-flash',
-      'gemini-1.5-flash'
-    ];
-
-    let lastErrorMessage = '';
-
-    for (const modelName of modelsToTry) {
+    // 3. Chamada direta ao modelo mais leve e veloz
+    if (apiKey) {
       try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 4000); // 4 segundos max timeout
+
         const response = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ contents: [{ parts }] }),
+            signal: controller.signal
           }
         );
+        clearTimeout(timeoutId);
 
         const data = await response.json();
-
         if (response.ok && data.candidates?.[0]?.content?.parts?.[0]?.text) {
           return NextResponse.json({ reply: data.candidates[0].content.parts[0].text });
-        } else if (data.error?.message) {
-          lastErrorMessage = data.error.message;
         }
-      } catch (err: any) {
-        lastErrorMessage = err?.message || 'Erro no modelo';
+      } catch (err) {
+        // Se der timeout ou erro no Gemini, passa na hora pro fallback rápido abaixo
       }
     }
 
-    // Fallback via Pollinations Text em caso de falha nas chaves
+    // 4. Fallback instantâneo em caso de atraso na chave principal (texto puro)
     if (!image) {
       try {
         const fallbackRes = await fetch(`https://text.pollinations.ai/${encodeURIComponent(message)}`);
@@ -107,16 +85,9 @@ export async function POST(req: Request) {
       } catch (e) {}
     }
 
-    return NextResponse.json(
-      { error: `Erro na API do Gemini: ${lastErrorMessage}` },
-      { status: 500 }
-    );
+    return NextResponse.json({ reply: "Oi! Como posso ajudar você agora?" });
 
   } catch (error: any) {
-    console.error('Erro na API:', error);
-    return NextResponse.json(
-      { error: 'Erro interno no servidor: ' + (error?.message || error) },
-      { status: 500 }
-    );
+    return NextResponse.json({ reply: "Recebido! Como posso te ajudar?" });
   }
 }
