@@ -5,7 +5,7 @@ export async function POST(req: Request) {
     const { message, image } = await req.json();
     const lowerMsg = message ? message.toLowerCase() : '';
 
-    // 1. Geração de Imagens via Pollinations.ai (quando o usuário pede para criar uma imagem)
+    // 1. Geração de Imagens via Pollinations.ai
     const isImageRequest = 
       lowerMsg.includes('gerar imagem') || 
       lowerMsg.includes('crie uma imagem') || 
@@ -27,7 +27,7 @@ export async function POST(req: Request) {
       });
     }
 
-    // 2. Verificação da Chave da API
+    // 2. Chave da API
     const apiKey = process.env.GEMINI_API_KEY || '';
     if (!apiKey) {
       return NextResponse.json(
@@ -36,8 +36,18 @@ export async function POST(req: Request) {
       );
     }
 
-    // 3. Montar a estrutura de conteúdo (Texto puro ou Texto + Imagem Base64)
-    const parts: any[] = [{ text: message || 'Analise esta mensagem.' }];
+    // 3. System Prompt para forçar Português e formato profissional
+    const systemInstruction = 
+      "Você é o ScorpionAI, um assistente virtual de inteligência artificial de elite, focado em alta performance, clareza, concisão e resultados práticos. " +
+      "DIRETRIZES OBRIGATÓRIAS:\n" +
+      "1. Responda SEMPRE em Português do Brasil de forma clara, direta e objetiva.\n" +
+      "2. Elimine introduções longas ou saudações genéricas.\n" +
+      "3. Use formatação limpa (listas, negritos e tópicos). Evite tabelas ASCII complexas se não puderem ser renderizadas com perfeição.\n" +
+      "4. Seja altamente funcional em programação, estudos, escrita criativa, negócios e automação.";
+
+    const combinedText = `${systemInstruction}\n\n[Mensagem do Usuário]: ${message || 'Analise a solicitação.'}`;
+
+    const parts: any[] = [{ text: combinedText }];
 
     if (image) {
       const matches = image.match(/^data:(.+);base64,(.+)$/);
@@ -51,7 +61,7 @@ export async function POST(req: Request) {
       }
     }
 
-    // 4. Lista fallback de modelos (tentando o gemini-3.8-flash exigido e alternativas recentes)
+    // 4. Lista fallback de modelos atualizados
     const modelsToTry = [
       'gemini-3.8-flash',
       'gemini-2.5-flash',
@@ -80,11 +90,11 @@ export async function POST(req: Request) {
           lastErrorMessage = data.error.message;
         }
       } catch (err: any) {
-        lastErrorMessage = err?.message || 'Erro de conexão no modelo';
+        lastErrorMessage = err?.message || 'Erro no modelo';
       }
     }
 
-    // Fallback secundário via Pollinations Text em caso de texto puro
+    // Fallback via Pollinations Text em caso de falha nas chaves
     if (!image) {
       try {
         const fallbackRes = await fetch(`https://text.pollinations.ai/${encodeURIComponent(message)}`);
