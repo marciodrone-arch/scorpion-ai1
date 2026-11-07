@@ -29,7 +29,7 @@ export async function POST(req: Request) {
       });
     }
 
-    // 2. Chave de API
+    // 2. Verificação da Chave da API
     const apiKey = process.env.GEMINI_API_KEY || '';
     if (!apiKey) {
       return NextResponse.json(
@@ -38,52 +38,50 @@ export async function POST(req: Request) {
       );
     }
 
-    // 3. Chamada direta REST à API do Gemini (v1 oficial)
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [{ text: message }]
-            }
-          ]
-        }),
-      }
-    );
+    // 3. Lista de modelos para tentar em sequência caso algum seja recusado
+    const modelsToTry = [
+      'gemini-2.5-flash',
+      'gemini-2.0-flash',
+      'gemini-1.5-flash-latest',
+      'gemini-1.5-pro'
+    ];
 
-    const data = await response.json();
+    let lastError = '';
 
-    if (!response.ok) {
-      // Tenta fallback com o modelo gemini-2.5-flash se a chave tiver acesso
-      const fallbackResponse = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ contents: [{ parts: [{ text: message }] }] }),
+    for (const modelName of modelsToTry) {
+      try {
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: message }] }]
+            }),
+          }
+        );
+
+        const data = await response.json();
+
+        if (response.ok && data.candidates?.[0]?.content?.parts?.[0]?.text) {
+          return NextResponse.json({ reply: data.candidates[0].content.parts[0].text });
+        } else if (data.error?.message) {
+          lastError = data.error.message;
         }
-      );
-      const fallbackData = await fallbackResponse.json();
-      
-      if (fallbackResponse.ok && fallbackData.candidates?.[0]?.content?.parts?.[0]?.text) {
-        return NextResponse.json({ reply: fallbackData.candidates[0].content.parts[0].text });
+      } catch (err: any) {
+        lastError = err?.message || 'Erro de conexão';
       }
-
-      throw new Error(data.error?.message || 'Erro ao comunicar com a API do Gemini');
     }
 
-    const replyText = data.candidates?.[0]?.content?.parts?.[0]?.text || 'Sem resposta gerada.';
-    return NextResponse.json({ reply: replyText });
+    return NextResponse.json(
+      { error: `Erro na API do Gemini: ${lastError}` },
+      { status: 500 }
+    );
 
   } catch (error: any) {
     console.error('Erro na API:', error);
     return NextResponse.json(
-      { error: 'Erro interno ao processar a resposta da IA: ' + (error?.message || error) },
+      { error: 'Erro interno ao processar a resposta: ' + (error?.message || error) },
       { status: 500 }
     );
   }
