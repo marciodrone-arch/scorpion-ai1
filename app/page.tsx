@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 
 export default function Home() {
   const [messages, setMessages] = useState<Array<{ role: string; content: string; imageUrl?: string }>>([
-    { role: 'assistant', content: 'Olá! Eu sou o ScorpionAI. Estou pronto para conversar, criar imagens e ajudar você a desenvolver seu negócio. Como posso ajudar hoje?' }
+    { role: 'assistant', content: 'Olá! Eu sou o ScorpionAI. Estou pronto para conversar, analisar prints, criar imagens e ajudar você a desenvolver seu negócio. Como posso ajudar hoje?' }
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -21,11 +21,7 @@ export default function Home() {
   useEffect(() => {
     const saved = localStorage.getItem('scorpion_chats');
     if (saved) {
-      try { 
-        setRecentChats(JSON.parse(saved)); 
-      } catch (e) {
-        // Fallback em caso de erro no parse
-      }
+      try { setRecentChats(JSON.parse(saved)); } catch (e) {}
     } else {
       const initial = ['Migração C# K8s', 'Estratégia de Vendas Q4', 'Campanha Anúncio Facebook'];
       setRecentChats(initial);
@@ -60,13 +56,6 @@ export default function Home() {
     const messageText = textToSend || input;
     if ((!messageText.trim() && !selectedImage) || loading) return;
 
-    let finalContent = messageText;
-    if (selectedImage) {
-      finalContent = `[Imagem Anexada pelo Utilizador]\n${messageText || 'Analise esta imagem.'}`;
-    }
-
-    const contextualMessage = `[Modo Ativo: ${persona}] ${finalContent}`;
-
     const newMessages = [...messages, { 
       role: 'user', 
       content: messageText || 'Enviei uma imagem para análise.',
@@ -83,7 +72,11 @@ export default function Home() {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: contextualMessage, image: imgToSend }),
+        body: JSON.stringify({ 
+          message: messageText, 
+          image: imgToSend,
+          persona: persona 
+        }),
       });
 
       const data = await res.json();
@@ -232,7 +225,7 @@ export default function Home() {
             <div className="max-w-3xl mx-auto text-center py-12 space-y-4">
               <span className="text-4xl">🦂</span>
               <h2 className="text-3xl font-bold text-white tracking-tight">O futuro começa <span className="text-red-500">aqui.</span></h2>
-              <p className="text-gray-400 text-sm max-w-md mx-auto">Envie textos, faça upload de imagens para análise ou escolha uma ferramenta de automação.</p>
+              <p className="text-gray-400 text-sm max-w-md mx-auto">Envie textos, faça upload de prints para análise ou escolha uma ferramenta rápida.</p>
             </div>
           )}
 
@@ -285,7 +278,7 @@ export default function Home() {
             {selectedImage && (
               <div className="mb-2 flex items-center gap-2 bg-[#141720] p-2 rounded-xl border border-gray-800 w-fit">
                 <img src={selectedImage} alt="Preview" className="w-10 h-10 object-cover rounded-lg" />
-                <span className="text-xs text-gray-300">Imagem pronta para envio</span>
+                <span className="text-xs text-gray-300">Print pronto para envio</span>
                 <button onClick={() => setSelectedImage(null)} className="text-red-400 hover:text-red-300 text-xs px-2 font-bold">✕</button>
               </div>
             )}
@@ -315,7 +308,7 @@ export default function Home() {
                     handleSend();
                   }
                 }}
-                placeholder="Pergunte ou cole informações ao ScorpionAI..."
+                placeholder="Pergunte ou anexe um print ao ScorpionAI..."
                 rows={1}
                 className="w-full bg-[#141720] text-gray-100 placeholder-gray-500 text-sm rounded-2xl pl-12 pr-24 py-3.5 border border-gray-800 focus:outline-none focus:border-red-500 resize-none shadow-inner transition-all"
               />
@@ -330,7 +323,7 @@ export default function Home() {
             </div>
           </div>
           <div className="text-center mt-2">
-            <span className="text-[10px] text-gray-400">ScorpionAI v2.1 • Módulo de Upload e Análise Multimodal Ativo.</span>
+            <span className="text-[10px] text-gray-400">ScorpionAI v2.2 • Multimodal & Personas Ativas.</span>
           </div>
         </div>
 
