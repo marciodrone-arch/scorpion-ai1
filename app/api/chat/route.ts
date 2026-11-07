@@ -2,10 +2,10 @@ import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
   try {
-    const { message, image } = await req.json();
+    const { message, image, persona } = await req.json();
     const lowerMsg = message ? message.toLowerCase() : '';
 
-    // Geração de imagens via Pollinations.ai
+    // 1. Geração de Imagens via Pollinations.ai
     const isImageRequest = 
       lowerMsg.includes('gerar imagem') || 
       lowerMsg.includes('crie uma imagem') || 
@@ -27,11 +27,20 @@ export async function POST(req: Request) {
       });
     }
 
-    const apiKey = process.env.GEMINI_API_KEY || '';
-    const systemPrompt = "Você é o ScorpionAI, uma IA de elite, ultra-rápida, direta e em Português do Brasil. Responda de forma concisa e analítica.";
-    
-    const parts: any[] = [{ text: `${systemPrompt}\n\nUsuário: ${message || 'Analise esta solicitação.'}` }];
+    // 2. Definição da Persona Dinâmica
+    let roleInstruction = "Você é o ScorpionAI, um assistente de elite, direto e em Português do Brasil.";
+    if (persona === "Arquiteto de Software Sênior") {
+      roleInstruction = "Você é um Arquiteto de Software Sênior especializado em microsserviços, C#, Cloud e arquitetura limpa. Seja técnico e preciso.";
+    } else if (persona === "Copywriter de Alta Conversão") {
+      roleInstruction = "Você é um Copywriter especialista em vendas, foco em ROI, persuasão, engajamento e conversão.";
+    } else if (persona === "QA Tester & Auditor") {
+      roleInstruction = "Você é um Engenheiro de QA focado em testes rigorosos, detecção de bugs, validação de software e auditoria de código.";
+    }
 
+    const apiKey = process.env.GEMINI_API_KEY || '';
+    const parts: any[] = [{ text: `${roleInstruction}\n\n[Solicitação do Usuário]: ${message || 'Analise esta imagem.'}` }];
+
+    // 3. Suporte a Upload de Imagem / Print (Multimodal)
     if (image) {
       const matches = image.match(/^data:(.+);base64,(.+)$/);
       if (matches) {
@@ -44,6 +53,7 @@ export async function POST(req: Request) {
       }
     }
 
+    // 4. Chamada principal ultra-rápida ao Gemini
     if (apiKey) {
       try {
         const controller = new AbortController();
@@ -67,7 +77,7 @@ export async function POST(req: Request) {
       } catch (err) {}
     }
 
-    // Fallback leve via Pollinations Text se necessário
+    // Fallback leve via Pollinations Text para texto puro
     if (!image) {
       try {
         const fallbackRes = await fetch(`https://text.pollinations.ai/${encodeURIComponent(message)}`);
@@ -78,9 +88,9 @@ export async function POST(req: Request) {
       } catch (e) {}
     }
 
-    return NextResponse.json({ reply: "Olá! Como posso ajudar você a otimizar este projeto agora?" });
+    return NextResponse.json({ reply: "Sistema pronto. Como posso ajudar com este projeto?" });
 
   } catch (error: any) {
-    return NextResponse.json({ reply: "Sistema pronto. Como posso ajudar?" });
+    return NextResponse.json({ reply: "Erro interno processando a solicitação." }, { status: 500 });
   }
 }
