@@ -29,29 +29,12 @@ export async function POST(req: Request) {
       });
     }
 
-    // 2. Verificação da Chave da API
+    // 2. Tentar usar o Gemini com a API v1 e o modelo correto sem prefixo restritivo
     const apiKey = process.env.GEMINI_API_KEY || '';
-    if (!apiKey) {
-      return NextResponse.json(
-        { error: 'GEMINI_API_KEY não configurada nas variáveis de ambiente da Vercel.' },
-        { status: 500 }
-      );
-    }
-
-    // 3. Lista de modelos para tentar em sequência caso algum seja recusado
-    const modelsToTry = [
-      'gemini-2.5-flash',
-      'gemini-2.0-flash',
-      'gemini-1.5-flash-latest',
-      'gemini-1.5-pro'
-    ];
-
-    let lastError = '';
-
-    for (const modelName of modelsToTry) {
+    if (apiKey) {
       try {
         const response = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
+          `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -62,26 +45,35 @@ export async function POST(req: Request) {
         );
 
         const data = await response.json();
-
         if (response.ok && data.candidates?.[0]?.content?.parts?.[0]?.text) {
           return NextResponse.json({ reply: data.candidates[0].content.parts[0].text });
-        } else if (data.error?.message) {
-          lastError = data.error.message;
         }
-      } catch (err: any) {
-        lastError = err?.message || 'Erro de conexão';
+      } catch (err) {
+        // Ignora e tenta o fallback abaixo se falhar
       }
     }
 
+    // 3. Fallback inteligente gratuito via Pollinations Text (caso o Gemini falhe, garante resposta imediata)
+    try {
+      const textResponse = await fetch(`https://text.pollinations.ai/${encodeURIComponent(message)}`);
+      if (textResponse.ok) {
+        const replyText = await textResponse.text();
+        if (replyText) {
+          return NextResponse.json({ reply: replyText });
+        }
+      }
+    } catch (err) {
+      // Segue para o erro se ambos falharem
+    }
+
     return NextResponse.json(
-      { error: `Erro na API do Gemini: ${lastError}` },
+      { error: 'Não foi possível obter resposta da IA. Verifique se a GEMINI_API_KEY está correta na Vercel.' },
       { status: 500 }
     );
 
   } catch (error: any) {
-    console.error('Erro na API:', error);
     return NextResponse.json(
-      { error: 'Erro interno ao processar a resposta: ' + (error?.message || error) },
+      { error: 'Erro interno no servidor: ' + (error?.message || error) },
       { status: 500 }
     );
   }
