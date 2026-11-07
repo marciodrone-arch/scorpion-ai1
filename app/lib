@@ -1,0 +1,20 @@
+import { GoogleGenerativeAI } from '@google/generative-ai';
+
+const apiKey = process.env.GEMINI_API_KEY || '';
+const genAI = new GoogleGenerativeAI(apiKey);
+
+export async function generateGeminiText(prompt: string, modelName: string = 'gemini-1.5-flash') {
+  try {
+    if (!apiKey) {
+      throw new Error('GEMINI_API_KEY não configurada nas variáveis de ambiente.');
+    }
+
+    const model = genAI.getGenerativeModel({ model: modelName });
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    return response.text();
+  } catch (error: any) {
+    console.error('Erro na integração com Gemini:', error);
+    throw error;
+  }
+}
