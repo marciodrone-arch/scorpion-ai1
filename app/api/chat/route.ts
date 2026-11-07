@@ -5,7 +5,7 @@ export async function POST(req: Request) {
     const { message, image } = await req.json();
     const lowerMsg = message ? message.toLowerCase() : '';
 
-    // 1. Geração de Imagens via Pollinations.ai (se o utilizador pedir para criar uma imagem)
+    // 1. Geração de Imagens via Pollinations.ai (quando o usuário pede para criar uma imagem)
     const isImageRequest = 
       lowerMsg.includes('gerar imagem') || 
       lowerMsg.includes('crie uma imagem') || 
@@ -27,7 +27,7 @@ export async function POST(req: Request) {
       });
     }
 
-    // 2. Chave da API
+    // 2. Verificação da Chave da API
     const apiKey = process.env.GEMINI_API_KEY || '';
     if (!apiKey) {
       return NextResponse.json(
@@ -36,48 +36,71 @@ export async function POST(req: Request) {
       );
     }
 
-    // 3. Montar a estrutura de conteúdos (Texto + Imagem se houver)
-    const parts: any[] = [{ text: message || 'Analise esta imagem.' }];
+    // 3. Montar a estrutura de conteúdo (Texto puro ou Texto + Imagem Base64)
+    const parts: any[] = [{ text: message || 'Analise esta mensagem.' }];
 
     if (image) {
-      // Extrai o formato base64 se a imagem contiver o cabeçalho data:image/...
       const matches = image.match(/^data:(.+);base64,(.+)$/);
       if (matches) {
-        const mimeType = matches[1];
-        const base64Data = matches[2];
         parts.push({
           inline_data: {
-            mime_type: mimeType,
-            data: base64Data
+            mime_type: matches[1],
+            data: matches[2]
           }
         });
       }
     }
 
-    // 4. Chamada REST direta para o Gemini Multimodal
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts }]
-        }),
+    // 4. Lista fallback de modelos (tentando o gemini-3.8-flash exigido e alternativas recentes)
+    const modelsToTry = [
+      'gemini-3.8-flash',
+      'gemini-2.5-flash',
+      'gemini-2.0-flash',
+      'gemini-1.5-flash'
+    ];
+
+    let lastErrorMessage = '';
+
+    for (const modelName of modelsToTry) {
+      try {
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ parts }] }),
+          }
+        );
+
+        const data = await response.json();
+
+        if (response.ok && data.candidates?.[0]?.content?.parts?.[0]?.text) {
+          return NextResponse.json({ reply: data.candidates[0].content.parts[0].text });
+        } else if (data.error?.message) {
+          lastErrorMessage = data.error.message;
+        }
+      } catch (err: any) {
+        lastErrorMessage = err?.message || 'Erro de conexão no modelo';
       }
+    }
+
+    // Fallback secundário via Pollinations Text em caso de texto puro
+    if (!image) {
+      try {
+        const fallbackRes = await fetch(`https://text.pollinations.ai/${encodeURIComponent(message)}`);
+        if (fallbackRes.ok) {
+          const fallbackText = await fallbackRes.text();
+          if (fallbackText) {
+            return NextResponse.json({ reply: fallbackText });
+          }
+        }
+      } catch (e) {}
+    }
+
+    return NextResponse.json(
+      { error: `Erro na API do Gemini: ${lastErrorMessage}` },
+      { status: 500 }
     );
-
-    const data = await response.json();
-
-    if (response.ok && data.candidates?.[0]?.content?.parts?.[0]?.text) {
-      return NextResponse.json({ reply: data.candidates[0].content.parts[0].text });
-    }
-
-    // Fallback caso ocorra algum erro no modelo principal
-    if (data.error?.message) {
-      return NextResponse.json({ error: `Erro na API do Gemini: ${data.error.message}` }, { status: 500 });
-    }
-
-    return NextResponse.json({ error: 'Não foi possível analisar a solicitação.' }, { status: 500 });
 
   } catch (error: any) {
     console.error('Erro na API:', error);
