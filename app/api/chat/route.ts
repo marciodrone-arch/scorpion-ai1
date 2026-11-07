@@ -6,7 +6,7 @@ export async function POST(req: Request) {
     const { message } = await req.json();
     const lowerMsg = message ? message.toLowerCase() : '';
 
-    // 1. Verificação de requisição multimédia (Geração de Imagens via Pollinations.ai)
+    // 1. Geração de Imagens via Pollinations.ai
     const isImageRequest = 
       lowerMsg.includes('gerar imagem') || 
       lowerMsg.includes('crie uma imagem') || 
@@ -30,10 +30,9 @@ export async function POST(req: Request) {
       });
     }
 
-    // 2. Provedor Gemini (Utilizando a versão atualizada e estável do modelo)
+    // 2. Resposta do Gemini
     if (process.env.GEMINI_API_KEY) {
       try {
-        // Modelo atualizado para evitar o erro de depreciação do Google
         const geminiModel = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
         const reply = await generateGeminiText(message, geminiModel);
         return NextResponse.json({ reply });
@@ -42,34 +41,8 @@ export async function POST(req: Request) {
       }
     }
 
-    // 3. Fallback Groq (Caso a chave da Groq seja adicionada no futuro)
-    const groqKey = process.env.GROQ_API_KEY;
-    if (groqKey) {
-      try {
-        const groqModel = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
-        const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${groqKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: groqModel,
-            messages: [{ role: 'user', content: message }],
-          }),
-        });
-
-        const data = await response.json();
-        if (response.ok && data.choices?.[0]?.message?.content) {
-          return NextResponse.json({ reply: data.choices[0].message.content });
-        }
-      } catch (groqErr) {
-        console.warn('Falha no fallback da Groq:', groqErr);
-      }
-    }
-
     return NextResponse.json(
-      { error: 'Não foi possível obter resposta dos provedores de IA.' },
+      { error: 'Não foi possível obter resposta do Gemini.' },
       { status: 500 }
     );
 
