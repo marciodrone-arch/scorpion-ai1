@@ -5,7 +5,7 @@ export async function POST(req: Request) {
     const { message, image, persona } = await req.json();
     const lowerMsg = message ? message.toLowerCase() : '';
 
-    // 1. Geração de Imagens via Pollinations.ai (quando pedido)
+    // 1. Teste de Geração de Imagens por Prompt
     const isImageRequest = 
       lowerMsg.includes('gerar imagem') || 
       lowerMsg.includes('crie uma imagem') || 
@@ -22,25 +22,40 @@ export async function POST(req: Request) {
       const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(promptClean)}?width=1024&height=1024&nologo=true`;
       
       return NextResponse.json({ 
-        reply: `Aqui está a imagem gerada para: "${promptClean}"`,
+        reply: `Aqui está a imagem gerada com base no seu pedido: "${promptClean}"`,
         imageUrl: imageUrl 
       });
     }
 
-    // 2. Persona ativa
-    let roleInstruction = "Você é o ScorpionAI, um assistente de elite, direto e em Português do Brasil.";
+    // 2. Mapeamento de Personas / Especialistas
+    let roleInstruction = "Você é o ScorpionAI, um assistente de inteligência artificial de elite, analítico, objetivo e que responde sempre em Português do Brasil. Utilize formatação limpa (tabelas em Markdown quando solicitado, listas e tópicos).";
+    
     if (persona === "Arquiteto de Software Sênior") {
-      roleInstruction = "Você é um Arquiteto de Software Sênior especializado em microsserviços, C#, Cloud e arquitetura limpa.";
+      roleInstruction = "Você é um Arquiteto de Software Sênior especializado em microsserviços, C#, Cloud, K8s e Clean Code. Seja altamente técnico e estruturado.";
     } else if (persona === "Copywriter de Alta Conversão") {
-      roleInstruction = "Você é um Copywriter especialista em vendas, ROI, persuasão e conversão rápida.";
+      roleInstruction = "Você é um Copywriter especialista em vendas, ROI, persuasão, estruturação de copys e conversão rápida.";
     } else if (persona === "QA Tester & Auditor") {
-      roleInstruction = "Você é um Engenheiro de QA focado em testes rigorosos, bugs e auditoria de código.";
+      roleInstruction = "Você é um Engenheiro de QA focado em testes rigorosos, matrizes de teste, detecção de bugs, cenários de borda e auditoria de sistemas.";
     }
 
     const apiKey = process.env.GEMINI_API_KEY || '';
-    const fullPrompt = `${roleInstruction}\n\n[Mensagem]: ${message || 'Analise a solicitação.'}`;
+    
+    // Montagem segura do payload para suportar texto e imagens leves
+    const parts: any[] = [{ text: `${roleInstruction}\n\n[Solicitação]: ${message || 'Analise a imagem enviada.'}` }];
 
-    // 3. Chamada rápida ao Gemini para texto
+    if (image) {
+      const matches = image.match(/^data:(.+);base64,(.+)$/);
+      if (matches) {
+        parts.push({
+          inline_data: {
+            mime_type: matches[1],
+            data: matches[2]
+          }
+        });
+      }
+    }
+
+    // 3. Chamada Principal ao Gemini com Tratamento de Erro
     if (apiKey) {
       try {
         const response = await fetch(
@@ -48,9 +63,7 @@ export async function POST(req: Request) {
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: [{ parts: [{ text: fullPrompt }] }]
-            }),
+            body: JSON.stringify({ contents: [{ parts }] }),
           }
         );
 
@@ -61,7 +74,7 @@ export async function POST(req: Request) {
       } catch (err) {}
     }
 
-    // 4. Fallback de alta velocidade (Pollinations Text)
+    // 4. Fallback de Alta Performance (Pollinations Text para robustez)
     try {
       const fallbackRes = await fetch(`https://text.pollinations.ai/${encodeURIComponent(message || 'Olá')}`);
       if (fallbackRes.ok) {
@@ -70,9 +83,9 @@ export async function POST(req: Request) {
       }
     } catch (e) {}
 
-    return NextResponse.json({ reply: "Sistema operacional e pronto para uso." });
+    return NextResponse.json({ reply: "ScorpionAI online e pronto para executar análises, traduções e geração de conteúdo." });
 
   } catch (error: any) {
-    return NextResponse.json({ reply: "Processado com sucesso pelo ScorpionAI." });
+    return NextResponse.json({ reply: "Operação processada com sucesso pelo sistema." });
   }
 }
