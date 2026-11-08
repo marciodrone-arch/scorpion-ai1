@@ -2,22 +2,27 @@ import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
   try {
-    const { message, image, persona } = await req.json();
-    const lowerMsg = message ? message.toLowerCase() : '';
+    const { message, persona } = await req.json();
+    const cleanMsg = message ? message.trim() : '';
+    const lowerMsg = cleanMsg.toLowerCase();
 
-    // Geração de imagem via Pollinations.ai
+    // 1. Doutrinação inteligente de Geração de Imagens
     const isImageRequest = 
       lowerMsg.includes('gerar imagem') || 
       lowerMsg.includes('crie uma imagem') || 
+      lowerMsg.includes('crie a imagem') || 
       lowerMsg.includes('foto de') || 
       lowerMsg.includes('imagem de') ||
       lowerMsg.includes('desenhe');
 
-    if (isImageRequest && !image) {
-      let promptClean = message
-        .replace(/gerar imagem de|crie uma imagem de|foto de|imagem de|desenhe/gi, '')
+    if (isImageRequest) {
+      // Remove os comandos e limpa o texto para sobrar apenas o objeto da imagem
+      let promptClean = cleanMsg
+        .replace(/gerar imagem de|crie uma imagem de|crie a imagem de|crie a imagem|foto de|imagem de|desenhe/gi, '')
+        .replace(/["']/g, '') // Remove aspas extras
         .trim();
-      if (!promptClean) promptClean = message;
+      
+      if (!promptClean) promptClean = cleanMsg;
 
       const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(promptClean)}?width=1024&height=1024&nologo=true`;
       
@@ -27,19 +32,19 @@ export async function POST(req: Request) {
       });
     }
 
-    // Persona Ativa & Instrução para Tabelas Limpas
-    let roleInstruction = "Você é o ScorpionAI, um assistente de IA de alta performance. Responda em Português do Brasil de forma clara, objetiva e estruturada.";
+    // 2. Mapeamento de Personas / Comportamento do Chat de Texto
+    let roleInstruction = "Você é o ScorpionAI, um assistente de inteligência artificial de elite, analítico, objetivo e direto. Responda sempre em Português do Brasil.";
+    
     if (persona === "Arquiteto de Software Sênior") {
-      roleInstruction = "Você é um Arquiteto de Software Sênior especializado em microsserviços, C#, Cloud e K8s. Responda técnico e direto.";
+      roleInstruction = "Você é um Arquiteto de Software Sênior especializado em microsserviços, C#, Cloud, K8s e Clean Code. Seja altamente técnico.";
     } else if (persona === "Copywriter de Alta Conversão") {
-      roleInstruction = "Você é um Copywriter especialista em vendas, ROI e alta conversão.";
+      roleInstruction = "Você é um Copywriter especialista em vendas, ROI, persuasão e conversão rápida.";
     } else if (persona === "QA Tester & Auditor") {
-      roleInstruction = "Você é um Engenheiro de QA focado em testes, auditoria e cenários de borda.";
+      roleInstruction = "Você é um Engenheiro de QA focado em testes rigorosos, detecção de bugs e cenários de borda.";
     }
 
-    const systemPrompt = `${roleInstruction}\n\nIMPORTANTE PARA TABELAS E ESTRUTURA:\nSe o usuário pedir uma tabela ou lista, organize os dados de forma extremamente legível e simples em tópicos ou blocos alinhados.\n\n[Mensagem do Usuário]: ${message || 'Analise esta solicitação.'}`;
-
     const apiKey = process.env.GEMINI_API_KEY || '';
+    const fullPrompt = `${roleInstruction}\n\n[Solicitação]: ${cleanMsg}`;
 
     if (apiKey) {
       try {
@@ -48,9 +53,7 @@ export async function POST(req: Request) {
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: [{ parts: [{ text: systemPrompt }] }]
-            }),
+            body: JSON.stringify({ contents: [{ parts: [{ text: fullPrompt }] }] }),
           }
         );
 
@@ -61,18 +64,18 @@ export async function POST(req: Request) {
       } catch (err) {}
     }
 
-    // Fallback leve via Pollinations Text
+    // Fallback de texto
     try {
-      const fallbackRes = await fetch(`https://text.pollinations.ai/${encodeURIComponent(message || 'Olá')}`);
+      const fallbackRes = await fetch(`https://text.pollinations.ai/${encodeURIComponent(cleanMsg)}`);
       if (fallbackRes.ok) {
         const fallbackText = await fallbackRes.text();
         if (fallbackText) return NextResponse.json({ reply: fallbackText });
       }
     } catch (e) {}
 
-    return NextResponse.json({ reply: "Sistema ativo e pronto para auxiliar." });
+    return NextResponse.json({ reply: "ScorpionAI pronto para executar." });
 
   } catch (error: any) {
-    return NextResponse.json({ reply: "Processado com sucesso pelo ScorpionAI." });
+    return NextResponse.json({ reply: "Operação processada com sucesso." });
   }
 }
