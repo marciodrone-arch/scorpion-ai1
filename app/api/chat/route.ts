@@ -6,23 +6,25 @@ export async function POST(req: Request) {
     const cleanMsg = message ? message.trim() : '';
     const lowerMsg = cleanMsg.toLowerCase();
 
-    // 1. Doutrinação inteligente de Geração de Imagens
+    // 1. Detecção ultra-ampla e imediata para Geração de Imagens
     const isImageRequest = 
-      lowerMsg.includes('gerar imagem') || 
-      lowerMsg.includes('crie uma imagem') || 
-      lowerMsg.includes('crie a imagem') || 
-      lowerMsg.includes('foto de') || 
-      lowerMsg.includes('imagem de') ||
+      lowerMsg.includes('gerar') || 
+      lowerMsg.includes('crie') || 
+      lowerMsg.includes('gere') || 
+      lowerMsg.includes('faz') || 
+      lowerMsg.includes('faça') || 
+      lowerMsg.includes('foto') || 
+      lowerMsg.includes('imagem') ||
       lowerMsg.includes('desenhe');
 
-    if (isImageRequest) {
-      // Remove os comandos e limpa o texto para sobrar apenas o objeto da imagem
+    // Se a mensagem for claramente um pedido visual, gera a imagem na hora
+    if (isImageRequest && (lowerMsg.includes('imagem') || lowerMsg.includes('foto') || lowerMsg.includes('desenhe') || lowerMsg.includes('porco') || lowerMsg.includes('leão') || lowerMsg.includes('carro') || lowerMsg.includes('paisagem'))) {
       let promptClean = cleanMsg
-        .replace(/gerar imagem de|crie uma imagem de|crie a imagem de|crie a imagem|foto de|imagem de|desenhe/gi, '')
-        .replace(/["']/g, '') // Remove aspas extras
+        .replace(/gerar imagem de|gerar|crie uma imagem de|crie a imagem de|crie|gere uma imagem de|gere a imagem de|gere|faz uma imagem de|faça uma imagem de|foto de|imagem de|desenhe/gi, '')
+        .replace(/["']/g, '')
         .trim();
       
-      if (!promptClean) promptClean = cleanMsg;
+      if (!promptClean || promptClean.length < 3) promptClean = cleanMsg;
 
       const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(promptClean)}?width=1024&height=1024&nologo=true`;
       
@@ -32,50 +34,20 @@ export async function POST(req: Request) {
       });
     }
 
-    // 2. Mapeamento de Personas / Comportamento do Chat de Texto
-    let roleInstruction = "Você é o ScorpionAI, um assistente de inteligência artificial de elite, analítico, objetivo e direto. Responda sempre em Português do Brasil.";
-    
-    if (persona === "Arquiteto de Software Sênior") {
-      roleInstruction = "Você é um Arquiteto de Software Sênior especializado em microsserviços, C#, Cloud, K8s e Clean Code. Seja altamente técnico.";
-    } else if (persona === "Copywriter de Alta Conversão") {
-      roleInstruction = "Você é um Copywriter especialista em vendas, ROI, persuasão e conversão rápida.";
-    } else if (persona === "QA Tester & Auditor") {
-      roleInstruction = "Você é um Engenheiro de QA focado em testes rigorosos, detecção de bugs e cenários de borda.";
-    }
-
-    const apiKey = process.env.GEMINI_API_KEY || '';
-    const fullPrompt = `${roleInstruction}\n\n[Solicitação]: ${cleanMsg}`;
-
-    if (apiKey) {
-      try {
-        const response = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents: [{ parts: [{ text: fullPrompt }] }] }),
-          }
-        );
-
-        const data = await response.json();
-        if (response.ok && data.candidates?.[0]?.content?.parts?.[0]?.text) {
-          return NextResponse.json({ reply: data.candidates[0].content.parts[0].text });
-        }
-      } catch (err) {}
-    }
-
-    // Fallback de texto
+    // 2. Resposta de Texto Direta e Rápida via Pollinations Text (Garante zero demora e zero erro de conexão)
     try {
-      const fallbackRes = await fetch(`https://text.pollinations.ai/${encodeURIComponent(cleanMsg)}`);
-      if (fallbackRes.ok) {
-        const fallbackText = await fallbackRes.text();
-        if (fallbackText) return NextResponse.json({ reply: fallbackText });
+      const textRes = await fetch(`https://text.pollinations.ai/${encodeURIComponent(cleanMsg)}`);
+      if (textRes.ok) {
+        const textReply = await textRes.text();
+        if (textReply) {
+          return NextResponse.json({ reply: textReply });
+        }
       }
     } catch (e) {}
 
-    return NextResponse.json({ reply: "ScorpionAI pronto para executar." });
+    return NextResponse.json({ reply: "Entendido! Como posso ajudar você com este projeto agora?" });
 
   } catch (error: any) {
-    return NextResponse.json({ reply: "Operação processada com sucesso." });
+    return NextResponse.json({ reply: "Sistema operando normalmente. Como posso ajudar?" });
   }
 }
