@@ -9,31 +9,28 @@ export async function GET() {
     const pool = getPool();
 
     const result = await pool.query(`
-      SELECT
-        current_database() AS database_name,
-        current_schema() AS schema_name,
-        (
-          SELECT COUNT(*)
-          FROM scorpion_rate_limits
-        ) AS total_registros
+      INSERT INTO scorpion_rate_limits
+        (id, request_count, window_start, updated_at)
+      VALUES
+        ('diagnostico-scorpion', 1, NOW(), NOW())
+      ON CONFLICT (id)
+      DO UPDATE SET
+        request_count = scorpion_rate_limits.request_count + 1,
+        updated_at = NOW()
+      RETURNING id, request_count
     `);
 
     return NextResponse.json({
       success: true,
-      connected: true,
-      database: result.rows[0].database_name,
-      schema: result.rows[0].schema_name,
-      total_registros: Number(result.rows[0].total_registros),
+      message: "Gravação no Neon funcionando!",
+      registro: result.rows[0],
     });
   } catch (error) {
-    console.error("[ScorpionAI] Diagnóstico Neon:", error);
+    console.error("[ScorpionAI] Erro de gravação:", error);
 
-    return NextResponse.json(
-      {
-        success: false,
-        message: "Erro ao consultar o banco de dados.",
-      },
-      { status: 500 }
-    );
+    return NextResponse.json({
+      success: false,
+      message: error instanceof Error ? error.message : "Erro desconhecido",
+    }, { status: 500 });
   }
 }
