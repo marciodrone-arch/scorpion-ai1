@@ -51,6 +51,7 @@ export default function Home() {
   const [recentChats, setRecentChats] = useState<ChatRecord[]>([]);
   const [activeChatId, setActiveChatId] = useState('');
   const [currentProvider, setCurrentProvider] = useState('');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -105,10 +106,14 @@ export default function Home() {
 
     saveChat(record);
 
-    setRecentChats((previous) => [
-      record,
-      ...previous.filter((chat) => chat.id !== id),
-    ].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 50));
+    setRecentChats((previous) =>
+      [
+        record,
+        ...previous.filter((chat) => chat.id !== id),
+      ]
+        .sort((a, b) => b.updatedAt - a.updatedAt)
+        .slice(0, 50)
+    );
   };
 
   const handleSend = async (textToSend?: string) => {
@@ -126,7 +131,9 @@ export default function Home() {
     ];
 
     setMessages(newMessages);
+
     if (textToSend === undefined) setInput('');
+
     setLoading(true);
     setCurrentProvider('');
 
@@ -178,8 +185,10 @@ export default function Home() {
             : 'Erro de conexão com o servidor.',
       };
 
-      setMessages([...newMessages, errorMessage]);
-      persistConversation(chatId, [...newMessages, errorMessage]);
+      const updatedMessages = [...newMessages, errorMessage];
+
+      setMessages(updatedMessages);
+      persistConversation(chatId, updatedMessages);
     } finally {
       setLoading(false);
     }
@@ -192,6 +201,7 @@ export default function Home() {
     setActiveChatId(Date.now().toString());
     setCurrentProvider('');
     setInput('');
+    setIsSidebarOpen(false);
   };
 
   const openChat = (chat: ChatRecord) => {
@@ -203,6 +213,7 @@ export default function Home() {
       [...chat.messages].reverse().find((message) => message.provider)
         ?.provider || ''
     );
+    setIsSidebarOpen(false);
   };
 
   const copyToClipboard = async (text: string, index: number) => {
@@ -216,21 +227,46 @@ export default function Home() {
   };
 
   return (
-    <div className="flex h-screen bg-[#0a0c10] text-gray-100 font-sans overflow-hidden">
+    <div className="flex h-screen h-[100dvh] bg-[#0a0c10] text-gray-100 font-sans overflow-hidden">
 
-      {/* Sidebar Lateral */}
-      <aside className="w-64 bg-[#111318] text-gray-200 h-screen p-4 flex flex-col justify-between border-r border-gray-800/80 shadow-xl shrink-0">
+      {/* Fundo escuro do menu no celular */}
+      {isSidebarOpen && (
+        <button
+          type="button"
+          aria-label="Fechar menu"
+          onClick={() => setIsSidebarOpen(false)}
+          className="fixed inset-0 z-20 bg-black/60 md:hidden"
+        />
+      )}
+
+      {/* Menu lateral */}
+      <aside
+        className={`fixed inset-y-0 left-0 z-30 w-72 max-w-[85vw] bg-[#111318] text-gray-200 h-full p-4 flex flex-col justify-between border-r border-gray-800/80 shadow-xl shrink-0 transform transition-transform duration-200 md:relative md:translate-x-0 md:w-64 md:max-w-none ${
+          isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
         <div className="space-y-5 overflow-y-auto">
-          <div className="flex items-center gap-3 px-2 pt-2">
-            <span className="text-2xl">🦂</span>
-            <div>
-              <h1 className="text-lg font-bold text-white tracking-wide leading-none">
-                ScorpionAI
-              </h1>
-              <span className="text-[10px] text-red-500 font-semibold tracking-widest uppercase">
-                Intelligence System
-              </span>
+          <div className="flex items-center justify-between gap-3 px-2 pt-2">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">🦂</span>
+              <div>
+                <h1 className="text-lg font-bold text-white tracking-wide leading-none">
+                  ScorpionAI
+                </h1>
+                <span className="text-[10px] text-red-500 font-semibold tracking-widest uppercase">
+                  Intelligence System
+                </span>
+              </div>
             </div>
+
+            <button
+              type="button"
+              onClick={() => setIsSidebarOpen(false)}
+              className="text-gray-400 hover:text-white text-2xl md:hidden px-2"
+              aria-label="Fechar menu"
+            >
+              ×
+            </button>
           </div>
 
           <button
@@ -246,6 +282,7 @@ export default function Home() {
             <div className="text-[11px] font-bold text-gray-400 px-2 uppercase tracking-wider">
               Modo de Especialista
             </div>
+
             <select
               value={persona}
               onChange={(e) => setPersona(e.target.value)}
@@ -280,27 +317,30 @@ export default function Home() {
             </div>
 
             <button
-              onClick={() =>
-                handleSend('Crie uma imagem de um leão moderno e futurista')
-              }
+              onClick={() => {
+                setIsSidebarOpen(false);
+                handleSend('Crie uma imagem de um leão moderno e futurista');
+              }}
               className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-gray-300 hover:bg-[#181b24] transition-colors text-left"
             >
               <span>🎨</span><span>Criar imagens</span>
             </button>
 
             <button
-              onClick={() =>
-                handleSend('Me ajude a estruturar uma estratégia comercial forte')
-              }
+              onClick={() => {
+                setIsSidebarOpen(false);
+                handleSend('Me ajude a estruturar uma estratégia comercial forte');
+              }}
               className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-gray-300 hover:bg-[#181b24] transition-colors text-left"
             >
               <span>📈</span><span>Assistente comercial</span>
             </button>
 
             <button
-              onClick={() =>
-                handleSend('Escreva um anúncio de alta conversão')
-              }
+              onClick={() => {
+                setIsSidebarOpen(false);
+                handleSend('Escreva um anúncio de alta conversão');
+              }}
               className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-gray-300 hover:bg-[#181b24] transition-colors text-left"
             >
               <span>✍️</span><span>Criar anúncios</span>
@@ -343,33 +383,47 @@ export default function Home() {
         </div>
       </aside>
 
-      {/* Área Principal */}
-      <main className="flex-1 flex flex-col justify-between bg-[#0a0c10] relative min-w-0">
+      {/* Área principal */}
+      <main className="flex-1 flex flex-col bg-[#0a0c10] relative min-w-0 min-h-0">
 
-        <header className="h-16 border-b border-gray-800/60 flex items-center justify-between px-6 bg-[#0a0c10]/80 backdrop-blur-md z-10 shrink-0">
-          <div>
+        <header className="min-h-16 border-b border-gray-800/60 flex items-center gap-3 px-3 sm:px-6 py-3 bg-[#0a0c10]/80 backdrop-blur-md z-10 shrink-0">
+          <button
+            type="button"
+            onClick={() => setIsSidebarOpen(true)}
+            className="md:hidden w-10 h-10 flex items-center justify-center rounded-xl border border-gray-700 text-gray-200 hover:bg-[#181b24]"
+            aria-label="Abrir menu"
+          >
+            <span className="text-xl">☰</span>
+          </button>
+
+          <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <h2 className="font-bold text-gray-200 text-base">
+              <h2 className="font-bold text-gray-200 text-sm sm:text-base">
                 Assistente Inteligente
               </h2>
+
               <span className="bg-red-500/10 text-red-400 text-[10px] px-2 py-0.5 rounded-full border border-red-500/20 font-medium">
                 {persona}
               </span>
             </div>
-            <p className="text-xs text-gray-400">
+
+            <p className="text-xs text-gray-400 truncate">
               Ambiente otimizado de alta performance
               {currentProvider ? ` • Provedor: ${currentProvider}` : ''}
             </p>
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        {/* Mensagens */}
+        <div className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-6 space-y-6">
           {messages.length === 1 && (
-            <div className="max-w-3xl mx-auto text-center py-12 space-y-4">
+            <div className="max-w-3xl mx-auto text-center py-8 sm:py-12 space-y-4">
               <span className="text-4xl">🦂</span>
-              <h2 className="text-3xl font-bold text-white tracking-tight">
+
+              <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
                 O futuro começa <span className="text-red-500">aqui.</span>
               </h2>
+
               <p className="text-gray-400 text-sm max-w-md mx-auto">
                 Peça análises, traduções, criação de textos ou solicite imagens para o assistente.
               </p>
@@ -379,7 +433,7 @@ export default function Home() {
           {messages.map((msg, index) => (
             <div
               key={index}
-              className={`flex gap-4 max-w-3xl mx-auto w-full ${
+              className={`flex gap-2 sm:gap-4 max-w-3xl mx-auto w-full ${
                 msg.role === 'user' ? 'justify-end' : 'justify-start'
               }`}
             >
@@ -390,13 +444,15 @@ export default function Home() {
               )}
 
               <div
-                className={`p-4 rounded-2xl text-sm leading-relaxed relative ${
+                className={`p-3 sm:p-4 rounded-2xl text-sm leading-relaxed relative min-w-0 ${
                   msg.role === 'user'
-                    ? 'bg-red-600 text-white rounded-br-xs max-w-lg shadow-md'
+                    ? 'bg-red-600 text-white rounded-br-xs max-w-[85%] sm:max-w-lg shadow-md'
                     : 'bg-[#141720] border border-gray-800 text-gray-200 rounded-bl-xs w-full shadow-md overflow-x-auto'
                 }`}
               >
-                <p className="whitespace-pre-wrap font-sans">{msg.content}</p>
+                <p className="whitespace-pre-wrap font-sans break-words">
+                  {msg.content}
+                </p>
 
                 {msg.imageUrl && (
                   <div className="mt-3">
@@ -410,13 +466,14 @@ export default function Home() {
                 )}
 
                 {msg.role === 'assistant' && (
-                  <div className="mt-2 pt-2 border-t border-gray-800/40 flex justify-between items-center">
+                  <div className="mt-2 pt-2 border-t border-gray-800/40 flex justify-between items-center gap-2">
                     <span className="text-[10px] text-gray-500">
                       {msg.provider || ''}
                     </span>
+
                     <button
                       onClick={() => copyToClipboard(msg.content, index)}
-                      className="text-[11px] text-gray-400 hover:text-white transition-colors flex items-center gap-1 bg-gray-900/40 px-2 py-1 rounded-md"
+                      className="text-[11px] text-gray-400 hover:text-white transition-colors flex items-center gap-1 bg-gray-900/40 px-2 py-1 rounded-md shrink-0"
                     >
                       {copiedIndex === index ? '✅ Copiado!' : '📋 Copiar'}
                     </button>
@@ -433,10 +490,11 @@ export default function Home() {
           ))}
 
           {loading && (
-            <div className="flex gap-4 max-w-3xl mx-auto w-full items-center">
+            <div className="flex gap-3 sm:gap-4 max-w-3xl mx-auto w-full items-center">
               <div className="w-8 h-8 rounded-full bg-red-600/20 border border-red-500/30 flex items-center justify-center shrink-0">
                 🦂
               </div>
+
               <div className="p-4 bg-[#141720] border border-gray-800 text-gray-400 rounded-2xl text-sm flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-red-500 animate-ping"></span>
                 <span>Processando resposta do ScorpionAI...</span>
@@ -447,8 +505,8 @@ export default function Home() {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Caixa de Entrada */}
-        <div className="p-6 bg-[#0a0c10] border-t border-gray-800/60 shrink-0">
+        {/* Caixa de entrada */}
+        <div className="p-3 sm:p-6 bg-[#0a0c10] border-t border-gray-800/60 shrink-0">
           <div className="max-w-3xl mx-auto relative flex items-center">
             <textarea
               value={input}
@@ -459,7 +517,7 @@ export default function Home() {
                   handleSend();
                 }
               }}
-              placeholder="Pergunte ao ScorpionAI ou peça para criar uma imagem..."
+              placeholder="Pergunte ao ScorpionAI..."
               rows={1}
               className="w-full bg-[#141720] text-gray-100 placeholder-gray-500 text-sm rounded-2xl pl-4 pr-24 py-3.5 border border-gray-800 focus:outline-none focus:border-red-500 resize-none shadow-inner transition-all"
             />
@@ -480,7 +538,6 @@ export default function Home() {
             </span>
           </div>
         </div>
-
       </main>
     </div>
   );
