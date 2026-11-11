@@ -1,6 +1,7 @@
 
 import { betterAuth } from "better-auth";
 import { getPool } from "./db";
+import { randomUUID } from "node:crypto";
 
 export const auth = betterAuth({
   database: getPool(),
@@ -12,7 +13,7 @@ export const auth = betterAuth({
 
   advanced: {
     database: {
-      generateId: "uuid",
+      generateId: () => randomUUID(),
     },
   },
 
