@@ -41,6 +41,80 @@ function saveChat(record: ChatRecord) {
   }
 }
 
+function mapServerConversation(item: any): ChatRecord | null {
+  try {
+    const serverMessages = Array.isArray(item.messages)
+      ? item.messages
+      : [];
+
+    const mappedMessages: Message[] = serverMessages
+      .map((message: any) => {
+        const parts = Array.isArray(message.parts) ? message.parts : [];
+
+        const textPart = parts.find(
+          (part: any) => part?.type === 'text'
+        );
+
+        const imagePart = parts.find(
+          (part: any) => part?.type === 'image'
+        );
+
+        const providerPart = parts.find(
+          (part: any) => part?.type === 'provider'
+        );
+
+        const content =
+          typeof message.content === 'string'
+            ? message.content
+            : typeof textPart?.text === 'string'
+              ? textPart.text
+              : '';
+
+        return {
+          role: message.role,
+          content,
+          imageUrl:
+            message.imageUrl ||
+            imagePart?.url ||
+            imagePart?.imageUrl ||
+            undefined,
+          provider:
+            message.provider ||
+            providerPart?.provider ||
+            undefined,
+        };
+      })
+      .filter(
+        (message: Message) =>
+          (message.role === 'user' || message.role === 'assistant') &&
+          typeof message.content === 'string'
+      );
+
+    if (!item.id || mappedMessages.length === 0) return null;
+
+    const firstUserMessage = mappedMessages.find(
+      (message) => message.role === 'user'
+    );
+
+    const title =
+      item.title ||
+      firstUserMessage?.content.slice(0, 35) ||
+      'Nova conversa';
+
+    return {
+      id: String(item.id),
+      title,
+      messages: mappedMessages,
+      updatedAt: item.updatedAt
+        ? new Date(item.updatedAt).getTime()
+        : Date.now(),
+    };
+  } catch (error) {
+    console.error('Erro ao interpretar conversa do servidor:', error);
+    return null;
+  }
+}
+
 export default function Home() {
   const [messages, setMessages] = useState<Message[]>([initialMessage]);
   const [input, setInput] = useState('');
@@ -56,18 +130,83 @@ export default function Home() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
+    let cancelled = false;
 
-    if (saved) {
+    async function loadConversations() {
+      let localChats: ChatRecord[] = [];
+
       try {
-        const chats: ChatRecord[] = JSON.parse(saved);
-        setRecentChats(chats);
+        const saved = localStorage.getItem(STORAGE_KEY);
+
+        if (saved) {
+          const parsed = JSON.parse(saved);
+
+          if (Array.isArray(parsed)) {
+            localChats = parsed;
+          }
+        }
       } catch (error) {
-        console.error('Erro ao recuperar conversas:', error);
+        console.error('Erro ao recuperar conversas locais:', error);
+      }
+
+      if (!cancelled) {
+        setRecentChats(localChats);
+        setActiveChatId(Date.now().toString());
+      }
+
+      try {
+        const response = await fetch('/api/conversations', {
+          method: 'GET',
+          credentials: 'include',
+          cache: 'no-store',
+        });
+
+        if (!response.ok) {
+          throw new Error('Não foi possível carregar as conversas do servidor.');
+        }
+
+        const data = await response.json();
+
+        if (!Array.isArray(data.conversations)) return;
+
+        const serverChats = data.conversations
+          .map(mapServerConversation)
+          .filter((chat: ChatRecord | null): chat is ChatRecord => chat !== null);
+
+        if (cancelled) return;
+
+        const mergedChats = [
+          ...serverChats,
+          ...localChats.filter(
+            (localChat) =>
+              !serverChats.some(
+                (serverChat) => serverChat.id === localChat.id
+              )
+          ),
+        ]
+          .sort((a, b) => b.updatedAt - a.updatedAt)
+          .slice(0, 50);
+
+        setRecentChats(mergedChats);
+
+        try {
+          localStorage.setItem(
+            STORAGE_KEY,
+            JSON.stringify(mergedChats)
+          );
+        } catch (error) {
+          console.error('Erro ao atualizar histórico local:', error);
+        }
+      } catch (error) {
+        console.error('Erro ao carregar histórico do Neon:', error);
       }
     }
 
-    setActiveChatId(Date.now().toString());
+    loadConversations();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const filteredChats = recentChats.filter((chat) =>
@@ -82,7 +221,7 @@ export default function Home() {
     scrollToBottom();
   }, [messages, loading]);
 
-  const persistConversation = (
+  const persistConversation = async (
     id: string,
     conversationMessages: Message[]
   ) => {
@@ -114,6 +253,29 @@ export default function Home() {
         .sort((a, b) => b.updatedAt - a.updatedAt)
         .slice(0, 50)
     );
+
+    try {
+      const response = await fetch('/api/conversations', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          id,
+          messages: conversationMessages,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(
+          errorData.error || 'Falha ao salvar conversa no servidor.'
+        );
+      }
+    } catch (error) {
+      console.error('Erro ao salvar conversa no Neon:', error);
+    }
   };
 
   const handleSend = async (textToSend?: string) => {
@@ -140,6 +302,7 @@ export default function Home() {
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -173,7 +336,7 @@ export default function Home() {
       setMessages(updatedMessages);
       setCurrentProvider(data.provider || '');
 
-      persistConversation(chatId, updatedMessages);
+      await persistConversation(chatId, updatedMessages);
     } catch (error) {
       console.error('Erro no chat:', error);
 
@@ -188,7 +351,7 @@ export default function Home() {
       const updatedMessages = [...newMessages, errorMessage];
 
       setMessages(updatedMessages);
-      persistConversation(chatId, updatedMessages);
+      await persistConversation(chatId, updatedMessages);
     } finally {
       setLoading(false);
     }
@@ -229,7 +392,6 @@ export default function Home() {
   return (
     <div className="flex h-screen h-[100dvh] bg-[#0a0c10] text-gray-100 font-sans overflow-hidden">
 
-      {/* Fundo escuro do menu no celular */}
       {isSidebarOpen && (
         <button
           type="button"
@@ -239,7 +401,6 @@ export default function Home() {
         />
       )}
 
-      {/* Menu lateral */}
       <aside
         className={`fixed inset-y-0 left-0 z-30 w-72 max-w-[85vw] bg-[#111318] text-gray-200 h-full p-4 flex flex-col justify-between border-r border-gray-800/80 shadow-xl shrink-0 transform transition-transform duration-200 md:relative md:translate-x-0 md:w-64 md:max-w-none ${
           isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
@@ -383,7 +544,6 @@ export default function Home() {
         </div>
       </aside>
 
-      {/* Área principal */}
       <main className="flex-1 flex flex-col bg-[#0a0c10] relative min-w-0 min-h-0">
 
         <header className="min-h-16 border-b border-gray-800/60 flex items-center gap-3 px-3 sm:px-6 py-3 bg-[#0a0c10]/80 backdrop-blur-md z-10 shrink-0">
@@ -414,7 +574,6 @@ export default function Home() {
           </div>
         </header>
 
-        {/* Mensagens */}
         <div className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-6 space-y-6">
           {messages.length === 1 && (
             <div className="max-w-3xl mx-auto text-center py-8 sm:py-12 space-y-4">
@@ -505,7 +664,6 @@ export default function Home() {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Caixa de entrada */}
         <div className="p-3 sm:p-6 bg-[#0a0c10] border-t border-gray-800/60 shrink-0">
           <div className="max-w-3xl mx-auto relative flex items-center">
             <textarea
