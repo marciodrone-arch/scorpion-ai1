@@ -23,7 +23,6 @@ export const auth = betterAuth({
 
   trustedOrigins: [
     process.env.BETTER_AUTH_URL || "http://localhost:3000",
-    "https://scorpion-ai1-5hf73b403-scorpin-ia.vercel.app",
-    "https://scorpion-ai1-gxfk9m4y3-scorpin-ia.vercel.app",
+    "https://scorpion-ai1-*-scorpin-ia.vercel.app",
   ],
 });
