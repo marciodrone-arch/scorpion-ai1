@@ -17,6 +17,11 @@ type ChatRecord = {
   updatedAt: number;
 };
 
+type AuthUser = {
+  name?: string;
+  email?: string;
+};
+
 const STORAGE_KEY = 'scorpion_chat_records';
 
 const initialMessage: Message = {
@@ -127,8 +132,55 @@ export default function Home() {
   const [currentProvider, setCurrentProvider] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [signingOut, setSigningOut] = useState(false);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Verifica se existe uma sessão ativa no ScorpionAI.
+  useEffect(() => {
+    let cancelled = false;
+
+    async function checkSession() {
+      try {
+        const response = await fetch('/api/auth/get-session', {
+          method: 'GET',
+          credentials: 'include',
+          cache: 'no-store',
+        });
+
+        if (!response.ok) {
+          if (!cancelled) setAuthUser(null);
+          return;
+        }
+
+        const data = await response.json();
+
+        if (!cancelled) {
+          setAuthUser(data?.user || null);
+        }
+      } catch (error) {
+        console.error('Erro ao verificar sessão:', error);
+
+        if (!cancelled) {
+          setAuthUser(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setAuthLoading(false);
+        }
+      }
+    }
+
+    checkSession();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Carrega o histórico local e o histórico salvo no Neon.
   useEffect(() => {
     let cancelled = false;
 
@@ -389,6 +441,31 @@ export default function Home() {
     }
   };
 
+  // Encerra a sessão da conta.
+  const handleSignOut = async () => {
+    if (signingOut) return;
+
+    setSigningOut(true);
+
+    try {
+      const response = await fetch('/api/auth/sign-out', {
+        method: 'POST',
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        throw new Error('Não foi possível encerrar a sessão.');
+      }
+
+      setAuthUser(null);
+      window.location.href = '/login';
+    } catch (error) {
+      console.error('Erro ao sair da conta:', error);
+      alert('Não foi possível sair. Tente novamente.');
+      setSigningOut(false);
+    }
+  };
+
   return (
     <div className="flex h-screen h-[100dvh] bg-[#0a0c10] text-gray-100 font-sans overflow-hidden">
 
@@ -536,11 +613,48 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="pt-3 border-t border-gray-800/80 flex items-center justify-between px-1 shrink-0">
-          <span className="flex items-center gap-2 text-xs text-gray-400">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            Online
-          </span>
+        {/* Área da conta e botão de sair. */}
+        <div className="pt-3 border-t border-gray-800/80 shrink-0 space-y-3">
+
+          {authLoading ? (
+            <p className="text-xs text-gray-500 px-2">
+              Verificando conta...
+            </p>
+          ) : authUser ? (
+            <div className="space-y-2">
+              <div className="px-2">
+                <p className="text-xs text-emerald-400 font-semibold">
+                  Conta conectada
+                </p>
+                <p className="text-xs text-gray-400 truncate">
+                  {authUser.name || authUser.email || 'Usuário'}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleSignOut}
+                disabled={signingOut}
+                className="w-full text-left px-3 py-2 rounded-xl text-sm text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"
+              >
+                {signingOut ? 'Saindo...' : '↪ Sair da conta'}
+              </button>
+            </div>
+          ) : (
+            <a
+              href="/login"
+              className="block w-full text-center bg-red-600 hover:bg-red-700 text-white text-sm font-semibold py-2.5 px-3 rounded-xl transition-colors"
+            >
+              Entrar / Criar conta
+            </a>
+          )}
+
+          <div className="flex items-center px-2">
+            <span className="flex items-center gap-2 text-xs text-gray-400">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              Online
+            </span>
+          </div>
         </div>
       </aside>
 
