@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import { createHash } from "node:crypto";
 import { getPool } from "../../db";
+import { auth } from "../../auth";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -255,6 +256,20 @@ async function askGroq(messages: ChatMessage[], persona: string) {
 
 export async function POST(req: Request) {
   try {
+    // Verifica se o usuário está autenticado.
+    const session = await auth.api.getSession({
+      headers: req.headers,
+    });
+
+    if (!session) {
+      return NextResponse.json(
+        {
+          reply: "Sua sessão expirou. Entre novamente para continuar.",
+        },
+        { status: 401 }
+      );
+    }
+
     const contentLength = Number(req.headers.get("content-length") || 0);
 
     if (contentLength > MAX_BODY_BYTES) {
