@@ -441,7 +441,7 @@ export default function Home() {
     }
   };
 
-  // Encerra a sessão da conta.
+  // Encerra a sessão da conta e mostra detalhes caso o servidor retorne erro.
   const handleSignOut = async () => {
     if (signingOut) return;
 
@@ -451,17 +451,43 @@ export default function Home() {
       const response = await fetch('/api/auth/sign-out', {
         method: 'POST',
         credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({}),
       });
 
+      const responseText = await response.text();
+      let responseData: any = {};
+
+      try {
+        responseData = responseText ? JSON.parse(responseText) : {};
+      } catch {
+        responseData = { message: responseText };
+      }
+
       if (!response.ok) {
-        throw new Error('Não foi possível encerrar a sessão.');
+        const serverMessage =
+          responseData?.message ||
+          responseData?.error ||
+          responseData?.code ||
+          responseText ||
+          'O servidor não informou o motivo.';
+
+        throw new Error(
+          `HTTP ${response.status}: ${String(serverMessage).slice(0, 500)}`
+        );
       }
 
       setAuthUser(null);
       window.location.href = '/login';
     } catch (error) {
-      console.error('Erro ao sair da conta:', error);
-      alert('Não foi possível sair. Tente novamente.');
+      console.error('Erro detalhado ao sair da conta:', error);
+
+      const message =
+        error instanceof Error ? error.message : String(error);
+
+      alert(`Falha ao sair da conta: ${message}`);
       setSigningOut(false);
     }
   };
