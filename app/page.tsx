@@ -82,6 +82,7 @@ function mapServerConversation(item: any): ChatRecord | null {
             message.imageUrl ||
             imagePart?.url ||
             imagePart?.imageUrl ||
+            imagePart?.text ||
             undefined,
           provider:
             message.provider ||
