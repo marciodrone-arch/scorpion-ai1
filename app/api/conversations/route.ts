@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "../../auth";
 import { getPool } from "../../db";
 import { randomUUID } from "node:crypto";
+import type { PoolClient } from "pg";
 
 export const runtime = "nodejs";
 
@@ -54,6 +55,7 @@ export async function GET(req: NextRequest) {
     });
   } catch (error) {
     console.error("Erro ao buscar conversas:", error);
+
     return NextResponse.json(
       { error: "Erro ao buscar histórico" },
       { status: 500 }
@@ -62,8 +64,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const pool = getPool();
-  const client = await pool.connect();
+  let client: PoolClient | null = null;
+  let transactionStarted = false;
 
   try {
     const session = await auth.api.getSession({
@@ -76,6 +78,10 @@ export async function POST(req: NextRequest) {
         { status: 401 }
       );
     }
+
+    // Só conecta ao banco depois de confirmar a autenticação.
+    const pool = getPool();
+    client = await pool.connect();
 
     const body = await req.json();
     const { id, messages } = body;
@@ -111,6 +117,7 @@ export async function POST(req: NextRequest) {
         .slice(0, 80) || "Nova conversa";
 
     await client.query("BEGIN");
+    transactionStarted = true;
 
     const conversation = await client.query(
       `INSERT INTO public.conversations
@@ -126,6 +133,8 @@ export async function POST(req: NextRequest) {
 
     if (conversation.rowCount === 0) {
       await client.query("ROLLBACK");
+      transactionStarted = false;
+
       return NextResponse.json(
         { error: "Conversa não encontrada" },
         { status: 404 }
@@ -183,13 +192,21 @@ export async function POST(req: NextRequest) {
     }
 
     await client.query("COMMIT");
+    transactionStarted = false;
 
     return NextResponse.json({
       success: true,
       message: "Histórico salvo com sucesso",
     });
   } catch (error) {
-    await client.query("ROLLBACK");
+    if (client && transactionStarted) {
+      try {
+        await client.query("ROLLBACK");
+      } catch (rollbackError) {
+        console.error("Erro ao desfazer transação:", rollbackError);
+      }
+    }
+
     console.error("Erro ao salvar conversa:", error);
 
     return NextResponse.json(
@@ -197,6 +214,6 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   } finally {
-    client.release();
+    client?.release();
   }
 }
