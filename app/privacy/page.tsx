@@ -27,7 +27,7 @@ export default function PrivacyPage() {
 
         <section className="space-y-3">
           <h2 className="text-xl font-semibold text-white">3. Serviços externos</h2>
-          <p>Para funcionar, o ScorpionAI utiliza serviços de infraestrutura e inteligência artificial, incluindo Vercel, Neon, Groq, Google Gemini e Cloudflare. As solicitações necessárias podem ser transmitidas a esses provedores para processamento.</p>
+          <p>Para funcionar, o ScorpionAI utiliza serviços de infraestrutura e inteligência artificial, incluindo Vercel, Neon e Cloudflare Workers AI. As mensagens e imagens necessárias são transmitidas à Cloudflare para processamento.</p>
         </section>
 
         <section className="space-y-3">
