@@ -138,8 +138,6 @@ function isImageRequest(message: string): boolean {
       message
     );
 
-  // Tratamento especial para palavras acentuadas:
-  // JavaScript não considera "ã" e "ç" caracteres de palavra em \b.
   const hasPortugueseApple =
     /(?:^|[^a-zA-Z0-9_])maç(?:ã|ãs)(?=$|[^a-zA-Z0-9_])/i.test(message);
 
@@ -388,17 +386,18 @@ export async function POST(req: Request) {
       );
     }
 
-    // Geração de imagens pela API oficial da OpenAI.
+    // Geração de imagens pela Cloudflare Workers AI.
     if (isImageRequest(message)) {
       const prompt = getImagePrompt(message);
       const generationPrompt = buildImagePrompt(message);
-      const apiKey = process.env.OPENAI_API_KEY;
+      const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
+      const apiToken = process.env.CLOUDFLARE_API_TOKEN;
 
-      if (!apiKey) {
+      if (!accountId || !apiToken) {
         return NextResponse.json(
           {
-            reply: "A geração de imagens ainda não está configurada. Verifique OPENAI_API_KEY nas variáveis da Vercel.",
-            provider: "OpenAI",
+            reply: "A geração de imagens não está configurada. Verifique CLOUDFLARE_ACCOUNT_ID e CLOUDFLARE_API_TOKEN na Vercel.",
+            provider: "Cloudflare",
           },
           { status: 503 }
         );
@@ -407,50 +406,65 @@ export async function POST(req: Request) {
       const imageTimeout = withTimeout(50000);
 
       try {
-        const imageModel = process.env.OPENAI_IMAGE_MODEL || "gpt-image-2.5-flare";
+        const imageModel = "@cf/black-forest-labs/flux-1-schnell";
 
         const imageResponse = await fetch(
-          "https://api.openai.com/v1/images/generations",
+          `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${imageModel}`,
           {
             method: "POST",
             headers: {
+              "Authorization": `Bearer ${apiToken}`,
               "Content-Type": "application/json",
-              Authorization: `Bearer ${apiKey}`,
             },
             body: JSON.stringify({
-              model: imageModel,
               prompt: generationPrompt,
-              size: "1024x1024",
-              quality: "low",
-              output_format: "jpeg",
-              n: 1,
             }),
             signal: imageTimeout.signal,
             cache: "no-store",
           }
         );
 
-        const imageData = await readResponse(imageResponse);
-
         if (!imageResponse.ok) {
-          const apiMessage =
-            imageData?.error?.message ||
-            imageData?.message ||
-            `OpenAI HTTP ${imageResponse.status}`;
+          const errorText = await imageResponse.text();
+          let errorMessage = errorText.slice(0, 500);
 
-          throw new Error(apiMessage);
+          try {
+            const errorData = JSON.parse(errorText);
+            errorMessage =
+              errorData?.errors?.[0]?.message ||
+              errorData?.messages?.[0]?.message ||
+              errorData?.error?.message ||
+              errorMessage;
+          } catch {
+            // Mantém a mensagem original retornada pela API.
+          }
+
+          throw new Error(
+            `Cloudflare HTTP ${imageResponse.status}: ${errorMessage}`
+          );
         }
 
-        const base64Image = imageData?.data?.[0]?.b64_json;
+        const imageBuffer = Buffer.from(
+          await imageResponse.arrayBuffer()
+        );
 
-        if (typeof base64Image !== "string" || !base64Image.trim()) {
-          throw new Error("A OpenAI não retornou os dados da imagem.");
+        if (!imageBuffer.length) {
+          throw new Error("A Cloudflare retornou uma imagem vazia.");
         }
+
+        const contentType =
+          imageResponse.headers.get("content-type") || "image/png";
+
+        const imageMime = contentType.includes("image/")
+          ? contentType.split(";")[0]
+          : "image/png";
+
+        const base64Image = imageBuffer.toString("base64");
 
         return NextResponse.json({
           reply: `Aqui está a imagem gerada para: "${prompt}"`,
-          imageUrl: `data:image/jpeg;base64,${base64Image}`,
-          provider: "OpenAI",
+          imageUrl: `data:${imageMime};base64,${base64Image}`,
+          provider: "Cloudflare Workers AI",
           model: imageModel,
         });
       } catch (error) {
@@ -461,12 +475,12 @@ export async function POST(req: Request) {
               ? error.message
               : "Erro desconhecido";
 
-        console.error("[ScorpionAI] Falha na geração OpenAI:", detail);
+        console.error("[ScorpionAI] Falha na geração Cloudflare:", detail);
 
         return NextResponse.json(
           {
             reply: `Não foi possível gerar a imagem: ${detail}`,
-            provider: "OpenAI",
+            provider: "Cloudflare Workers AI",
           },
           { status: 502 }
         );
