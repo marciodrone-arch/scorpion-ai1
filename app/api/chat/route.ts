@@ -122,7 +122,6 @@ function isImageRequest(message: string): boolean {
 
   if (explicitImageRequest) return true;
 
-  // Evita confundir pedidos de texto com pedidos de imagem.
   const textRequest =
     /\b(texto|história|historinha|resumo|redação|artigo|poema|poesia|roteiro|e-mail|email|mensagem|relatório|explicação|tradução|código|programa|lista|plano|receita escrita)\b/i.test(
       message
@@ -370,7 +369,8 @@ export async function POST(req: Request) {
       );
     }
 
-    // Geração de imagens pelo AI Horde
+    // Geração de imagens pelo AI Horde.
+    // r2:false solicita a imagem em Base64 WebP, sem link temporário.
     if (isImageRequest(message)) {
       const prompt = getImagePrompt(message);
       const apiBase = "https://aihorde.net/api/v2";
@@ -395,7 +395,7 @@ export async function POST(req: Request) {
             },
             nsfw: false,
             censor_nsfw: true,
-            r2: true,
+            r2: false,
             shared: true,
           }),
           cache: "no-store",
@@ -444,7 +444,19 @@ export async function POST(req: Request) {
               throw new Error("Não foi possível recuperar a imagem gerada.");
             }
 
-            imageUrl = status?.generations?.[0]?.img || null;
+            const generatedImage = status?.generations?.[0]?.img;
+
+            if (typeof generatedImage === "string" && generatedImage.trim()) {
+              const imageValue = generatedImage.trim();
+
+              imageUrl = imageValue.startsWith("data:image/")
+                ? imageValue
+                : imageValue.startsWith("https://") ||
+                    imageValue.startsWith("http://")
+                  ? imageValue
+                  : `data:image/webp;base64,${imageValue}`;
+            }
+
             break;
           }
         }
