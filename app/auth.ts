@@ -3,6 +3,9 @@ import { betterAuth } from "better-auth";
 import { getPool } from "./db";
 import { randomUUID } from "node:crypto";
 
+const appUrl =
+  process.env.BETTER_AUTH_URL || "http://localhost:3000";
+
 export const auth = betterAuth({
   database: getPool(),
 
@@ -19,12 +22,7 @@ export const auth = betterAuth({
 
   secret: process.env.BETTER_AUTH_SECRET,
 
-  baseURL:
-    process.env.BETTER_AUTH_URL || "http://localhost:3000",
+  baseURL: appUrl,
 
-  trustedOrigins: [
-    process.env.BETTER_AUTH_URL || "http://localhost:3000",
-    "https://scorpion-ai1-5hf73b403-scorpin-ia.vercel.app",
-    "https://scorpion-ai1-*.vercel.app",
-  ],
+  trustedOrigins: [appUrl],
 });
