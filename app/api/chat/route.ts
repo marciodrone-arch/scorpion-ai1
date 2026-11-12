@@ -370,17 +370,115 @@ export async function POST(req: Request) {
       );
     }
 
+    // Geração de imagens pelo AI Horde
     if (isImageRequest(message)) {
       const prompt = getImagePrompt(message);
-      const finalPrompt = prompt;
+      const apiBase = "https://aihorde.net/api/v2";
+      const headers = {
+        "Content-Type": "application/json",
+        apikey: "0000000000",
+        "Client-Agent": "ScorpionAI:1.0:github.com/marciodrone-arch/scorpion-ai1",
+      };
 
-      return NextResponse.json({
-        reply: `Aqui está a imagem gerada para: "${prompt}"`,
-        imageUrl:
-          `https://image.pollinations.ai/prompt/${encodeURIComponent(finalPrompt)}?width=1024&height=1024&nologo=true`,
-        provider: "Pollinations",
-        model: "Image Generation",
-      });
+      try {
+        const submitResponse = await fetch(`${apiBase}/generate/async`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            prompt,
+            params: {
+              width: 512,
+              height: 512,
+              steps: 20,
+              n: 1,
+              cfg_scale: 7,
+            },
+            nsfw: false,
+            censor_nsfw: true,
+            r2: true,
+            shared: true,
+          }),
+          cache: "no-store",
+        });
+
+        const submitted = await readResponse(submitResponse);
+
+        if (!submitResponse.ok || !submitted?.id) {
+          const errorMessage =
+            submitted?.message ||
+            submitted?.error?.message ||
+            "O serviço de imagens não aceitou o pedido.";
+          throw new Error(errorMessage);
+        }
+
+        let imageUrl: string | null = null;
+
+        // A fila é comunitária; consultamos o andamento a cada 2 segundos.
+        for (let attempt = 0; attempt < 20; attempt++) {
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+
+          const checkResponse = await fetch(
+            `${apiBase}/generate/check/${submitted.id}`,
+            { headers, cache: "no-store" }
+          );
+
+          const check = await readResponse(checkResponse);
+
+          if (!checkResponse.ok) {
+            throw new Error("Não foi possível consultar a fila de imagens.");
+          }
+
+          if (check.faulted) {
+            throw new Error("A geração falhou no serviço de imagens. Tente novamente.");
+          }
+
+          if (check.done === true || Number(check.finished || 0) >= 1) {
+            const statusResponse = await fetch(
+              `${apiBase}/generate/status/${submitted.id}`,
+              { headers, cache: "no-store" }
+            );
+
+            const status = await readResponse(statusResponse);
+
+            if (!statusResponse.ok) {
+              throw new Error("Não foi possível recuperar a imagem gerada.");
+            }
+
+            imageUrl = status?.generations?.[0]?.img || null;
+            break;
+          }
+        }
+
+        if (!imageUrl) {
+          return NextResponse.json(
+            {
+              reply: "A fila gratuita do AI Horde está demorando. Tente gerar novamente em alguns instantes.",
+              provider: "AI Horde",
+            },
+            { status: 504 }
+          );
+        }
+
+        return NextResponse.json({
+          reply: `Aqui está a imagem gerada para: "${prompt}"`,
+          imageUrl,
+          provider: "AI Horde",
+          model: "Stable Diffusion",
+        });
+      } catch (error) {
+        const detail =
+          error instanceof Error ? error.message : "Erro desconhecido";
+
+        console.error("[ScorpionAI] Falha no AI Horde:", detail);
+
+        return NextResponse.json(
+          {
+            reply: `Não foi possível gerar a imagem: ${detail}`,
+            provider: "AI Horde",
+          },
+          { status: 502 }
+        );
+      }
     }
 
     const errors: string[] = [];
