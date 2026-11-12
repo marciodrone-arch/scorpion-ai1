@@ -482,9 +482,32 @@ export async function POST(req: Request) {
           typeof item.imageUrl === "string"
       );
 
-    const isEdit =
-      isImageEditRequest(message) &&
-      Boolean(previousImageMessage?.imageUrl);
+    const explicitImageUrl =
+      typeof body?.imageUrl === "string" &&
+      body.imageUrl.length <= MAX_BODY_BYTES &&
+      (
+        body.imageUrl.startsWith("data:image/") ||
+        body.imageUrl.startsWith("https://")
+      )
+        ? body.imageUrl
+        : undefined;
+
+    const sourceImageUrl =
+      explicitImageUrl || previousImageMessage?.imageUrl;
+
+    const editIntent = isImageEditRequest(message);
+    const isEdit = editIntent && Boolean(sourceImageUrl);
+
+    if (editIntent && !sourceImageUrl) {
+      return NextResponse.json(
+        {
+          reply:
+            "Para editar uma imagem, primeiro gere ou envie uma imagem nesta conversa e depois peça a alteração.",
+          provider: "Cloudflare Workers AI",
+        },
+        { status: 400 }
+      );
+    }
 
     const shouldGenerateImage =
       isImageRequest(message) || isEdit;
@@ -522,7 +545,7 @@ export async function POST(req: Request) {
       const imageTimeout = withTimeout(50000);
 
       try {
-        const imageUrl = previousImageMessage?.imageUrl;
+        const imageUrl = sourceImageUrl;
 
         const endpoint = isEdit
           ? `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run`
