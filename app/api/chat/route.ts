@@ -239,7 +239,7 @@ async function askCloudflare(messages: ChatMessage[], persona: string) {
 
   try {
     const response = await fetch(
-      `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/v1/chat/completions`,
+      `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${model}`,
       {
         method: "POST",
         headers: {
@@ -247,7 +247,6 @@ async function askCloudflare(messages: ChatMessage[], persona: string) {
           Authorization: `Bearer ${apiToken}`,
         },
         body: JSON.stringify({
-          model,
           messages: [
             {
               role: "system",
@@ -255,8 +254,6 @@ async function askCloudflare(messages: ChatMessage[], persona: string) {
             },
             ...messages.map((item) => ({ role: item.role, content: item.content })),
           ],
-          temperature: 0.7,
-          max_completion_tokens: 4096,
         }),
         signal: timeout.signal,
         cache: "no-store",
@@ -264,11 +261,11 @@ async function askCloudflare(messages: ChatMessage[], persona: string) {
     );
 
     const data = await readResponse(response);
-    if (!response.ok) {
-      throw new Error(`Cloudflare Workers AI HTTP ${response.status}: ${data?.error?.message || data?.errors?.[0]?.message || "Erro na API"}`);
+    if (!response.ok || data?.success === false) {
+      throw new Error(`Cloudflare Workers AI HTTP ${response.status}: ${data?.errors?.[0]?.message || data?.error?.message || "Erro na API"}`);
     }
 
-    const reply = data?.choices?.[0]?.message?.content?.trim();
+    const reply = data?.result?.response?.trim();
     if (!reply) throw new Error("Cloudflare Workers AI retornou resposta vazia.");
 
     return { reply, provider: "Cloudflare Workers AI", model };
