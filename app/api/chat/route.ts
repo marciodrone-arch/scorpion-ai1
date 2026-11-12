@@ -46,6 +46,7 @@ function getClientId(req: Request): string {
     req.headers.get("x-real-ip") ||
     req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
     "unknown";
+
   return createHash("sha256").update(ip).digest("hex");
 }
 
@@ -100,6 +101,7 @@ function getMessages(message: unknown, history: unknown): ChatMessage[] {
 
   if (cleanMessage) {
     const last = messages[messages.length - 1];
+
     if (!last || last.role !== "user" || last.content !== cleanMessage) {
       messages.push({ role: "user", content: cleanMessage });
     }
@@ -151,21 +153,29 @@ function getImagePrompt(message: string): string {
   );
 }
 
+/* MELHORIA: instruções mais precisas para seguir o pedido da imagem. */
 function buildImagePrompt(message: string): string {
-  const prompt = getImagePrompt(message);
+  const prompt = getImagePrompt(message)
+    .replace(/\s+/g, " ")
+    .trim();
 
-  const isApple =
-    /(?:^|[^a-zA-Z0-9_])(?:maçã|maçãs|apple|apples)(?=$|[^a-zA-Z0-9_])/i.test(prompt);
-
-  if (isApple) {
-    return `${prompt}, clearly recognizable natural red apple with realistic shape, visible stem and subtle natural skin texture, high-quality detailed image, realistic lighting, faithfully follow the requested background and environment`;
-  }
-
-  return `${prompt}, clearly recognizable main subject, accurate shape and proportions, high-quality detailed image, realistic lighting, faithfully follow the requested background, environment, composition and style`;
+  return [
+    "Create an image that faithfully follows this exact user request:",
+    prompt,
+    "IMPORTANT INSTRUCTIONS:",
+    "Follow the requested subject, quantity, colors, objects, background, environment, composition, perspective and artistic style exactly.",
+    "Do not replace the requested subject.",
+    "Do not omit details specified by the user.",
+    "Do not add unrelated objects, people, animals, text, logos or decorations.",
+    "Do not change the requested background to white or transparent unless explicitly requested.",
+    "Keep all requested elements visible and correctly positioned.",
+    "The user's description has priority over any generic artistic choices."
+  ].join("\n");
 }
 
 async function readResponse(response: Response) {
   const text = await response.text();
+
   try {
     return JSON.parse(text);
   } catch {
@@ -175,6 +185,7 @@ async function readResponse(response: Response) {
 
 async function askGemini(messages: ChatMessage[], persona: string) {
   const apiKey = process.env.GEMINI_API_KEY;
+
   if (!apiKey) throw new Error("GEMINI_API_KEY não configurada.");
 
   const model = process.env.GEMINI_MODEL || "gemini-3.5-flash-lite";
@@ -210,6 +221,7 @@ async function askGemini(messages: ChatMessage[], persona: string) {
     );
 
     const data = await readResponse(response);
+
     if (!response.ok) {
       throw new Error(
         `Gemini HTTP ${response.status}: ${data?.error?.message || "Erro na API"}`
@@ -222,11 +234,13 @@ async function askGemini(messages: ChatMessage[], persona: string) {
       .trim();
 
     if (!reply) throw new Error("Gemini retornou resposta vazia.");
+
     return { reply, provider: "Gemini", model };
   } catch (error) {
     if (timeout.signal.aborted) {
       throw new Error("Gemini: tempo limite de 20 segundos excedido.");
     }
+
     throw error;
   } finally {
     timeout.clear();
@@ -235,6 +249,7 @@ async function askGemini(messages: ChatMessage[], persona: string) {
 
 async function askGroq(messages: ChatMessage[], persona: string) {
   const apiKey = process.env.GROQ_API_KEY;
+
   if (!apiKey) throw new Error("GROQ_API_KEY não configurada.");
 
   const model = process.env.GROQ_MODEL || "openai/gpt-oss-120b";
@@ -270,6 +285,7 @@ async function askGroq(messages: ChatMessage[], persona: string) {
     );
 
     const data = await readResponse(response);
+
     if (!response.ok) {
       throw new Error(
         `Groq HTTP ${response.status}: ${data?.error?.message || "Erro na API"}`
@@ -277,12 +293,15 @@ async function askGroq(messages: ChatMessage[], persona: string) {
     }
 
     const reply = data?.choices?.[0]?.message?.content?.trim();
+
     if (!reply) throw new Error("Groq retornou resposta vazia.");
+
     return { reply, provider: "Groq", model };
   } catch (error) {
     if (timeout.signal.aborted) {
       throw new Error("Groq: tempo limite de 20 segundos excedido.");
     }
+
     throw error;
   } finally {
     timeout.clear();
@@ -303,6 +322,7 @@ export async function POST(req: Request) {
     }
 
     const contentLength = Number(req.headers.get("content-length") || 0);
+
     if (contentLength > MAX_BODY_BYTES) {
       return NextResponse.json(
         { reply: "Sua solicitação é muito grande. Reduza o conteúdo e tente novamente." },
@@ -311,6 +331,7 @@ export async function POST(req: Request) {
     }
 
     const rawBody = await req.text();
+
     if (new TextEncoder().encode(rawBody).length > MAX_BODY_BYTES) {
       return NextResponse.json(
         { reply: "Sua solicitação é muito grande. Reduza o conteúdo e tente novamente." },
@@ -319,6 +340,7 @@ export async function POST(req: Request) {
     }
 
     let body;
+
     try {
       body = JSON.parse(rawBody);
     } catch {
@@ -346,16 +368,19 @@ export async function POST(req: Request) {
     }
 
     const messages = getMessages(message, body?.messages);
+
     const persona =
       typeof body?.persona === "string"
         ? body.persona.slice(0, 100)
         : "Geral";
 
     let limit;
+
     try {
       limit = await checkRateLimit(getClientId(req));
     } catch (error) {
       console.error("[ScorpionAI] Falha no controle de uso:", error);
+
       return NextResponse.json(
         { reply: "O sistema está temporariamente indisponível. Tente novamente em instantes." },
         { status: 503 }
@@ -380,6 +405,7 @@ export async function POST(req: Request) {
     if (isImageRequest(message)) {
       const prompt = getImagePrompt(message);
       const generationPrompt = buildImagePrompt(message);
+
       const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
       const apiToken = process.env.CLOUDFLARE_API_TOKEN;
 
@@ -417,6 +443,7 @@ export async function POST(req: Request) {
 
         if (!imageResponse.ok) {
           const errorData = await readResponse(imageResponse);
+
           const detail =
             errorData?.errors?.[0]?.message ||
             errorData?.messages?.[0]?.message ||
@@ -514,7 +541,13 @@ export async function POST(req: Request) {
     if (process.env.GROQ_API_KEY) {
       try {
         const result = await askGroq(messages, persona);
-        console.info("[ScorpionAI] Resposta recebida:", result.provider, result.model);
+
+        console.info(
+          "[ScorpionAI] Resposta recebida:",
+          result.provider,
+          result.model
+        );
+
         return NextResponse.json(result);
       } catch (error) {
         console.error("[ScorpionAI] Falha no Groq:", error);
@@ -526,7 +559,13 @@ export async function POST(req: Request) {
     if (process.env.GEMINI_API_KEY) {
       try {
         const result = await askGemini(messages, persona);
-        console.info("[ScorpionAI] Resposta recebida:", result.provider, result.model);
+
+        console.info(
+          "[ScorpionAI] Resposta recebida:",
+          result.provider,
+          result.model
+        );
+
         return NextResponse.json({ ...result, fallback: true });
       } catch (error) {
         console.error("[ScorpionAI] Falha no Gemini:", error);
@@ -544,6 +583,7 @@ export async function POST(req: Request) {
     );
   } catch (error) {
     console.error("[ScorpionAI] Erro geral:", error);
+
     return NextResponse.json(
       { reply: "Erro interno ao processar sua mensagem. Tente novamente." },
       { status: 500 }
