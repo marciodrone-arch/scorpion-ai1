@@ -117,7 +117,7 @@ function getMessages(message: unknown, history: unknown): ChatMessage[] {
 function isImageRequest(message: string): boolean {
   const explicitImageRequest =
     /\b(gerar|gere|crie|criar|desenhe|desenhar|faça|fazer|produza|produzir|generate|create|draw|make|produce)\s+(an?\s+|uma?\s+)?(imagem|image|picture|foto|photo|ilustração|illustration|desenho|drawing|arte|art)\b/i.test(message) ||
-    /\b(imagem|image|picture|foto|photo|ilustração|illustration|desenho|drawing)\s+(de|of)\b/i.test(message);
+    /\b(imagem|image|picture|foto|photo|ilustração|illustration|desenho|drawing)\s+(de|do|da|of)\b/i.test(message);
 
   if (explicitImageRequest) return true;
 
@@ -138,6 +138,11 @@ function isImageRequest(message: string): boolean {
   return creationVerb && (visualSubject || hasPortugueseApple);
 }
 
+function isImageEditRequest(message: string): boolean {
+  return /\b(coloque|coloca|adicione|adiciona|acrescente|acrescenta|inclua|inclui|remova|remove|retire|retira|mude|muda|troque|troca|substitua|substitui|altere|altera|modifique|modifica|transforme|transforma|aumente|aumenta|diminua|diminui|deixe|deixa|ponha|põe|insira|insere|colocar|adicionar|acrescentar|incluir|remover|retirar|mudar|trocar|alterar|modificar)\b/i.test(message) &&
+    /\b(imagem|foto|figura|cena|desenho|fogo|chamas|labaredas|água|neve|chuva|luz|fumaça|fumo|fundo|castelo|dragão|árvore|pessoa|animal|carro|céu|nuvens)\b/i.test(message);
+}
+
 function getImagePrompt(message: string): string {
   return (
     message
@@ -153,23 +158,24 @@ function getImagePrompt(message: string): string {
   );
 }
 
-/* MELHORIA: instruções mais precisas para seguir o pedido da imagem. */
-function buildImagePrompt(message: string): string {
-  const prompt = getImagePrompt(message)
-    .replace(/\s+/g, " ")
-    .trim();
+function buildImagePrompt(message: string, previousPrompt?: string): string {
+  const currentPrompt = message.replace(/\s+/g, " ").trim();
+
+  const prompt = previousPrompt
+    ? `Original scene: ${previousPrompt}. Requested change: ${currentPrompt}.`
+    : getImagePrompt(message);
 
   return [
-    "Create an image that faithfully follows this exact user request:",
+    "Create an image that faithfully follows this exact request:",
     prompt,
     "IMPORTANT INSTRUCTIONS:",
-    "Follow the requested subject, quantity, colors, objects, background, environment, composition, perspective and artistic style exactly.",
-    "Do not replace the requested subject.",
-    "Do not omit details specified by the user.",
-    "Do not add unrelated objects, people, animals, text, logos or decorations.",
-    "Do not change the requested background to white or transparent unless explicitly requested.",
-    "Keep all requested elements visible and correctly positioned.",
-    "The user's description has priority over any generic artistic choices."
+    "Preserve the original scene and all its important elements.",
+    "Apply the requested change clearly and visibly.",
+    "If fire or flames are requested, show clearly visible realistic flames, glowing embers, orange firelight and smoke where appropriate.",
+    "Do not omit requested details.",
+    "Do not add unrelated objects, people, animals, text or decorations.",
+    "Do not change the requested background unless explicitly asked.",
+    "The user's description has priority over generic artistic choices."
   ].join("\n");
 }
 
@@ -185,7 +191,6 @@ async function readResponse(response: Response) {
 
 async function askGemini(messages: ChatMessage[], persona: string) {
   const apiKey = process.env.GEMINI_API_KEY;
-
   if (!apiKey) throw new Error("GEMINI_API_KEY não configurada.");
 
   const model = process.env.GEMINI_MODEL || "gemini-3.5-flash-lite";
@@ -202,9 +207,7 @@ async function askGemini(messages: ChatMessage[], persona: string) {
         },
         body: JSON.stringify({
           systemInstruction: {
-            parts: [{
-              text: SYSTEM_PROMPT + `\nEspecialidade selecionada: ${persona}.`,
-            }],
+            parts: [{ text: SYSTEM_PROMPT + `\nEspecialidade selecionada: ${persona}.` }],
           },
           contents: messages.map((item) => ({
             role: item.role === "assistant" ? "model" : "user",
@@ -221,11 +224,8 @@ async function askGemini(messages: ChatMessage[], persona: string) {
     );
 
     const data = await readResponse(response);
-
     if (!response.ok) {
-      throw new Error(
-        `Gemini HTTP ${response.status}: ${data?.error?.message || "Erro na API"}`
-      );
+      throw new Error(`Gemini HTTP ${response.status}: ${data?.error?.message || "Erro na API"}`);
     }
 
     const reply = data?.candidates?.[0]?.content?.parts
@@ -234,13 +234,9 @@ async function askGemini(messages: ChatMessage[], persona: string) {
       .trim();
 
     if (!reply) throw new Error("Gemini retornou resposta vazia.");
-
     return { reply, provider: "Gemini", model };
   } catch (error) {
-    if (timeout.signal.aborted) {
-      throw new Error("Gemini: tempo limite de 20 segundos excedido.");
-    }
-
+    if (timeout.signal.aborted) throw new Error("Gemini: tempo limite de 20 segundos excedido.");
     throw error;
   } finally {
     timeout.clear();
@@ -249,59 +245,41 @@ async function askGemini(messages: ChatMessage[], persona: string) {
 
 async function askGroq(messages: ChatMessage[], persona: string) {
   const apiKey = process.env.GROQ_API_KEY;
-
   if (!apiKey) throw new Error("GROQ_API_KEY não configurada.");
 
   const model = process.env.GROQ_MODEL || "openai/gpt-oss-120b";
   const timeout = withTimeout(20000);
 
   try {
-    const response = await fetch(
-      "https://api.groq.com/openai/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model,
-          messages: [
-            {
-              role: "system",
-              content: SYSTEM_PROMPT + `\nEspecialidade selecionada: ${persona}.`,
-            },
-            ...messages.map((item) => ({
-              role: item.role,
-              content: item.content,
-            })),
-          ],
-          temperature: 0.7,
-          max_completion_tokens: 4096,
-        }),
-        signal: timeout.signal,
-        cache: "no-store",
-      }
-    );
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT + `\nEspecialidade selecionada: ${persona}.` },
+          ...messages.map((item) => ({ role: item.role, content: item.content })),
+        ],
+        temperature: 0.7,
+        max_completion_tokens: 4096,
+      }),
+      signal: timeout.signal,
+      cache: "no-store",
+    });
 
     const data = await readResponse(response);
-
     if (!response.ok) {
-      throw new Error(
-        `Groq HTTP ${response.status}: ${data?.error?.message || "Erro na API"}`
-      );
+      throw new Error(`Groq HTTP ${response.status}: ${data?.error?.message || "Erro na API"}`);
     }
 
     const reply = data?.choices?.[0]?.message?.content?.trim();
-
     if (!reply) throw new Error("Groq retornou resposta vazia.");
-
     return { reply, provider: "Groq", model };
   } catch (error) {
-    if (timeout.signal.aborted) {
-      throw new Error("Groq: tempo limite de 20 segundos excedido.");
-    }
-
+    if (timeout.signal.aborted) throw new Error("Groq: tempo limite de 20 segundos excedido.");
     throw error;
   } finally {
     timeout.clear();
@@ -310,9 +288,7 @@ async function askGroq(messages: ChatMessage[], persona: string) {
 
 export async function POST(req: Request) {
   try {
-    const session = await auth.api.getSession({
-      headers: req.headers,
-    });
+    const session = await auth.api.getSession({ headers: req.headers });
 
     if (!session) {
       return NextResponse.json(
@@ -322,7 +298,6 @@ export async function POST(req: Request) {
     }
 
     const contentLength = Number(req.headers.get("content-length") || 0);
-
     if (contentLength > MAX_BODY_BYTES) {
       return NextResponse.json(
         { reply: "Sua solicitação é muito grande. Reduza o conteúdo e tente novamente." },
@@ -331,7 +306,6 @@ export async function POST(req: Request) {
     }
 
     const rawBody = await req.text();
-
     if (new TextEncoder().encode(rawBody).length > MAX_BODY_BYTES) {
       return NextResponse.json(
         { reply: "Sua solicitação é muito grande. Reduza o conteúdo e tente novamente." },
@@ -340,24 +314,15 @@ export async function POST(req: Request) {
     }
 
     let body;
-
     try {
       body = JSON.parse(rawBody);
     } catch {
-      return NextResponse.json(
-        { reply: "Solicitação inválida." },
-        { status: 400 }
-      );
+      return NextResponse.json({ reply: "Solicitação inválida." }, { status: 400 });
     }
 
-    const message =
-      typeof body?.message === "string" ? body.message.trim() : "";
-
+    const message = typeof body?.message === "string" ? body.message.trim() : "";
     if (!message) {
-      return NextResponse.json(
-        { reply: "Digite uma mensagem para começar." },
-        { status: 400 }
-      );
+      return NextResponse.json({ reply: "Digite uma mensagem para começar." }, { status: 400 });
     }
 
     if (message.length > MAX_MESSAGE_LENGTH) {
@@ -368,19 +333,13 @@ export async function POST(req: Request) {
     }
 
     const messages = getMessages(message, body?.messages);
-
-    const persona =
-      typeof body?.persona === "string"
-        ? body.persona.slice(0, 100)
-        : "Geral";
+    const persona = typeof body?.persona === "string" ? body.persona.slice(0, 100) : "Geral";
 
     let limit;
-
     try {
       limit = await checkRateLimit(getClientId(req));
     } catch (error) {
       console.error("[ScorpionAI] Falha no controle de uso:", error);
-
       return NextResponse.json(
         { reply: "O sistema está temporariamente indisponível. Tente novamente em instantes." },
         { status: 503 }
@@ -394,17 +353,28 @@ export async function POST(req: Request) {
           provider: null,
           rateLimited: true,
         },
-        {
-          status: 429,
-          headers: { "Retry-After": "3600" },
-        }
+        { status: 429, headers: { "Retry-After": "3600" } }
       );
     }
 
-    // Geração de imagens pela Cloudflare Workers AI.
-    if (isImageRequest(message)) {
-      const prompt = getImagePrompt(message);
-      const generationPrompt = buildImagePrompt(message);
+    // Detecta pedidos de criação e alterações de imagens no histórico.
+    const previousImageMessage = [...messages.slice(0, -1)]
+      .reverse()
+      .find((item) => item.role === "user" && isImageRequest(item.content));
+
+    const isEdit = isImageEditRequest(message) && Boolean(previousImageMessage);
+    const shouldGenerateImage = isImageRequest(message) || isEdit;
+
+    if (shouldGenerateImage) {
+      const previousPrompt = isEdit && previousImageMessage
+        ? getImagePrompt(previousImageMessage.content)
+        : undefined;
+
+      const prompt = isEdit
+        ? `${previousPrompt}. Alteração solicitada: ${message}`
+        : getImagePrompt(message);
+
+      const generationPrompt = buildImagePrompt(message, previousPrompt);
 
       const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
       const apiToken = process.env.CLOUDFLARE_API_TOKEN;
@@ -443,7 +413,6 @@ export async function POST(req: Request) {
 
         if (!imageResponse.ok) {
           const errorData = await readResponse(imageResponse);
-
           const detail =
             errorData?.errors?.[0]?.message ||
             errorData?.messages?.[0]?.message ||
@@ -451,34 +420,21 @@ export async function POST(req: Request) {
             errorData?.error?.message ||
             JSON.stringify(errorData).slice(0, 500);
 
-          throw new Error(
-            `Cloudflare HTTP ${imageResponse.status}: ${detail}`
-          );
+          throw new Error(`Cloudflare HTTP ${imageResponse.status}: ${detail}`);
         }
 
-        const contentType =
-          imageResponse.headers.get("content-type") || "";
-
+        const contentType = imageResponse.headers.get("content-type") || "";
         let base64Image = "";
         let imageMime = "image/jpeg";
 
         if (contentType.toLowerCase().includes("image/")) {
-          const imageBuffer = Buffer.from(
-            await imageResponse.arrayBuffer()
-          );
-
-          if (!imageBuffer.length) {
-            throw new Error("A Cloudflare retornou uma imagem vazia.");
-          }
-
+          const imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
+          if (!imageBuffer.length) throw new Error("A Cloudflare retornou uma imagem vazia.");
           base64Image = imageBuffer.toString("base64");
           imageMime = contentType.split(";")[0];
         } else {
           const imageData = await readResponse(imageResponse);
-
-          const returnedImage =
-            imageData?.result?.image ||
-            imageData?.image;
+          const returnedImage = imageData?.result?.image || imageData?.image;
 
           if (
             imageData?.success === false ||
@@ -489,18 +445,11 @@ export async function POST(req: Request) {
               imageData?.errors?.[0]?.message ||
               imageData?.messages?.[0]?.message ||
               "A resposta não contém result.image.";
-
-            throw new Error(
-              `Resposta inválida da Cloudflare: ${detail}`
-            );
+            throw new Error(`Resposta inválida da Cloudflare: ${detail}`);
           }
 
           base64Image = returnedImage;
-
-          const dataUriMatch = returnedImage.match(
-            /^data:(image\/[^;]+);base64,(.+)$/i
-          );
-
+          const dataUriMatch = returnedImage.match(/^data:(image\/[^;]+);base64,(.+)$/i);
           if (dataUriMatch) {
             imageMime = dataUriMatch[1];
             base64Image = dataUriMatch[2];
@@ -512,16 +461,17 @@ export async function POST(req: Request) {
         }
 
         return NextResponse.json({
-          reply: `Aqui está a imagem gerada para: "${prompt}"`,
+          reply: isEdit
+            ? `Imagem atualizada com a alteração solicitada: "${message}"`
+            : `Aqui está a imagem gerada para: "${prompt}"`,
           imageUrl: `data:${imageMime};base64,${base64Image}`,
           provider: "Cloudflare Workers AI",
           model: imageModel,
         });
       } catch (error) {
-        const detail =
-          imageTimeout.signal.aborted
-            ? "Tempo limite de 50 segundos excedido."
-            : "Falha no serviço de geração de imagens.";
+        const detail = imageTimeout.signal.aborted
+          ? "Tempo limite de 50 segundos excedido."
+          : "Falha no serviço de geração de imagens.";
 
         console.error("[ScorpionAI] Falha na geração Cloudflare:", error);
 
@@ -541,13 +491,7 @@ export async function POST(req: Request) {
     if (process.env.GROQ_API_KEY) {
       try {
         const result = await askGroq(messages, persona);
-
-        console.info(
-          "[ScorpionAI] Resposta recebida:",
-          result.provider,
-          result.model
-        );
-
+        console.info("[ScorpionAI] Resposta recebida:", result.provider, result.model);
         return NextResponse.json(result);
       } catch (error) {
         console.error("[ScorpionAI] Falha no Groq:", error);
@@ -559,13 +503,7 @@ export async function POST(req: Request) {
     if (process.env.GEMINI_API_KEY) {
       try {
         const result = await askGemini(messages, persona);
-
-        console.info(
-          "[ScorpionAI] Resposta recebida:",
-          result.provider,
-          result.model
-        );
-
+        console.info("[ScorpionAI] Resposta recebida:", result.provider, result.model);
         return NextResponse.json({ ...result, fallback: true });
       } catch (error) {
         console.error("[ScorpionAI] Falha no Gemini:", error);
@@ -583,7 +521,6 @@ export async function POST(req: Request) {
     );
   } catch (error) {
     console.error("[ScorpionAI] Erro geral:", error);
-
     return NextResponse.json(
       { reply: "Erro interno ao processar sua mensagem. Tente novamente." },
       { status: 500 }
