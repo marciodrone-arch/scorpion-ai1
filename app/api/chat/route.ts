@@ -254,6 +254,8 @@ async function askCloudflare(messages: ChatMessage[], persona: string) {
             },
             ...messages.map((item) => ({ role: item.role, content: item.content })),
           ],
+          max_completion_tokens: 1200,
+          chat_template_kwargs: { enable_thinking: false },
         }),
         signal: timeout.signal,
         cache: "no-store",
@@ -265,8 +267,15 @@ async function askCloudflare(messages: ChatMessage[], persona: string) {
       throw new Error(`Cloudflare Workers AI HTTP ${response.status}: ${data?.errors?.[0]?.message || data?.error?.message || "Erro na API"}`);
     }
 
-    const reply = data?.result?.response?.trim();
-    if (!reply) throw new Error("Cloudflare Workers AI retornou resposta vazia.");
+    const reply =
+      (typeof data?.result?.response === "string" ? data.result.response : "") ||
+      (typeof data?.choices?.[0]?.message?.content === "string" ? data.choices[0].message.content : "") ||
+      (typeof data?.result?.choices?.[0]?.message?.content === "string" ? data.result.choices[0].message.content : "");
+
+    if (!reply.trim()) {
+      console.error("[ScorpionAI] Formato inesperado da resposta Cloudflare:", JSON.stringify(data).slice(0, 1500));
+      throw new Error("Cloudflare Workers AI não retornou texto. Verifique o formato da resposta do modelo.");
+    }
 
     return { reply, provider: "Cloudflare Workers AI", model };
   } catch (error) {
