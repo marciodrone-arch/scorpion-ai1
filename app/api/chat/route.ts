@@ -151,7 +151,6 @@ function getImagePrompt(message: string): string {
   );
 }
 
-// Mantém o cenário, o fundo e o estilo solicitados pelo usuário.
 function buildImagePrompt(message: string): string {
   const prompt = getImagePrompt(message);
 
@@ -436,7 +435,6 @@ export async function POST(req: Request) {
         let base64Image = "";
         let imageMime = "image/jpeg";
 
-        // A API pode retornar imagem binária ou JSON com result.image.
         if (contentType.toLowerCase().includes("image/")) {
           const imageBuffer = Buffer.from(
             await imageResponse.arrayBuffer()
@@ -496,11 +494,9 @@ export async function POST(req: Request) {
         const detail =
           imageTimeout.signal.aborted
             ? "Tempo limite de 50 segundos excedido."
-            : error instanceof Error
-              ? error.message
-              : "Erro desconhecido";
+            : "Falha no serviço de geração de imagens.";
 
-        console.error("[ScorpionAI] Falha na geração Cloudflare:", detail);
+        console.error("[ScorpionAI] Falha na geração Cloudflare:", error);
 
         return NextResponse.json(
           {
@@ -514,41 +510,35 @@ export async function POST(req: Request) {
       }
     }
 
-    const errors: string[] = [];
+    // Groq principal; Gemini como fallback.
+    if (process.env.GROQ_API_KEY) {
+      try {
+        const result = await askGroq(messages, persona);
+        console.info("[ScorpionAI] Resposta recebida:", result.provider, result.model);
+        return NextResponse.json(result);
+      } catch (error) {
+        console.error("[ScorpionAI] Falha no Groq:", error);
+      }
+    } else {
+      console.error("[ScorpionAI] GROQ_API_KEY não configurada.");
+    }
 
     if (process.env.GEMINI_API_KEY) {
       try {
         const result = await askGemini(messages, persona);
         console.info("[ScorpionAI] Resposta recebida:", result.provider, result.model);
-        return NextResponse.json(result);
-      } catch (error) {
-        const detail = error instanceof Error ? error.message : "Erro desconhecido";
-        errors.push(detail);
-        console.error("[ScorpionAI] Falha no Gemini:", detail);
-      }
-    } else {
-      errors.push("GEMINI_API_KEY não configurada.");
-    }
-
-    if (process.env.GROQ_API_KEY) {
-      try {
-        const result = await askGroq(messages, persona);
-        console.info("[ScorpionAI] Resposta recebida:", result.provider, result.model);
         return NextResponse.json({ ...result, fallback: true });
       } catch (error) {
-        const detail = error instanceof Error ? error.message : "Erro desconhecido";
-        errors.push(detail);
-        console.error("[ScorpionAI] Falha no Groq:", detail);
+        console.error("[ScorpionAI] Falha no Gemini:", error);
       }
     } else {
-      errors.push("GROQ_API_KEY não configurada.");
+      console.error("[ScorpionAI] GEMINI_API_KEY não configurada.");
     }
 
     return NextResponse.json(
       {
-        reply: "Não foi possível obter resposta dos provedores de IA.\n\nDetalhes: " + errors.join(" | "),
+        reply: "No momento, não foi possível obter uma resposta. Tente novamente em instantes.",
         provider: null,
-        errors,
       },
       { status: 503 }
     );
