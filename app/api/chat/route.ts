@@ -372,27 +372,7 @@ export async function POST(req: Request) {
 
     if (isImageRequest(message)) {
       const prompt = getImagePrompt(message);
-
-      let finalPrompt = prompt;
-      const translationTimeout = withTimeout(5000);
-
-      try {
-        const translation = await fetch(
-          `https://translate.googleapis.com/translate_a/single?client=gtx&sl=pt&tl=en&dt=t&q=${encodeURIComponent(prompt)}`,
-          { signal: translationTimeout.signal }
-        );
-
-        if (translation.ok) {
-          const translated = await translation.json();
-          if (translated?.[0]?.[0]?.[0]) {
-            finalPrompt = translated[0][0][0];
-          }
-        }
-      } catch {
-        // Mantém o texto original se a tradução falhar.
-      } finally {
-        translationTimeout.clear();
-      }
+      const finalPrompt = prompt;
 
       return NextResponse.json({
         reply: `Aqui está a imagem gerada para: "${prompt}"`,
