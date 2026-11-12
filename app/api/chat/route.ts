@@ -151,6 +151,7 @@ function getImagePrompt(message: string): string {
   );
 }
 
+// Mantém o cenário, o fundo e o estilo solicitados pelo usuário.
 function buildImagePrompt(message: string): string {
   const prompt = getImagePrompt(message);
 
@@ -158,10 +159,10 @@ function buildImagePrompt(message: string): string {
     /(?:^|[^a-zA-Z0-9_])(?:maçã|maçãs|apple|apples)(?=$|[^a-zA-Z0-9_])/i.test(prompt);
 
   if (isApple) {
-    return "one single real red apple fruit, unmistakably an apple, natural slightly asymmetrical apple shape, visible short brown stem and one small green leaf, smooth natural red apple skin with subtle texture, isolated and centered, pure white seamless studio background, professional photorealistic product photography, soft even studio lighting, sharp focus, no other objects";
+    return `${prompt}, clearly recognizable natural red apple with realistic shape, visible stem and subtle natural skin texture, high-quality detailed image, realistic lighting, faithfully follow the requested background and environment`;
   }
 
-  return `${prompt}, one clearly recognizable main subject, accurate object shape and proportions, isolated and centered, pure white seamless studio background, professional photorealistic product photography, soft even studio lighting, sharp focus, no other objects`;
+  return `${prompt}, clearly recognizable main subject, accurate shape and proportions, high-quality detailed image, realistic lighting, faithfully follow the requested background, environment, composition and style`;
 }
 
 async function readResponse(response: Response) {
