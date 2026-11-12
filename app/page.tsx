@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -144,7 +143,6 @@ export default function Home() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Verifica a sessão antes de carregar qualquer histórico.
   useEffect(() => {
     let cancelled = false;
 
@@ -166,8 +164,6 @@ export default function Home() {
         if (!cancelled) {
           const user = data?.user;
 
-          // Remove o cache global antigo, sem importar dados
-          // que possam pertencer a outro usuário.
           if (user?.id) {
             try {
               localStorage.removeItem(STORAGE_PREFIX);
@@ -202,7 +198,6 @@ export default function Home() {
     };
   }, []);
 
-  // Cada usuário carrega somente seu próprio histórico.
   useEffect(() => {
     if (authLoading) return;
 
@@ -400,10 +395,20 @@ export default function Home() {
         },
         body: JSON.stringify({
           message: messageText,
-          messages: newMessages.map((item) => ({
-            role: item.role,
-            content: item.content,
-          })),
+          messages: (() => {
+            const lastImageIndex = newMessages.reduce(
+              (lastIndex, item, index) => item.imageUrl ? index : lastIndex,
+              -1
+            );
+
+            return newMessages.map((item, index) => ({
+              role: item.role,
+              content: item.content,
+              ...(index === lastImageIndex && item.imageUrl
+                ? { imageUrl: item.imageUrl }
+                : {}),
+            }));
+          })(),
           persona,
         }),
       });
@@ -481,7 +486,6 @@ export default function Home() {
     }
   };
 
-  // Encerra a sessão e limpa o cache local da conta.
   const handleSignOut = async () => {
     if (signingOut || !authUser?.id) return;
 
