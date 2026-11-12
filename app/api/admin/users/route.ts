@@ -98,7 +98,7 @@ export async function POST(req: Request) {
           "planId" = 'premium',
           status = 'active',
           "currentPeriodEnd" = GREATEST(
-            COALESCE(public.subscriptions."currentPeriodEnd", NOW()),
+            COALESCE(subscriptions."currentPeriodEnd", NOW()),
             NOW()
           ) + INTERVAL '30 days',
           "cancelAtPeriodEnd" = false,
