@@ -226,110 +226,34 @@ async function readResponse(response: Response) {
   }
 }
 
-async function askGemini(messages: ChatMessage[], persona: string) {
-  const apiKey = process.env.GEMINI_API_KEY;
+async function askCloudflare(messages: ChatMessage[], persona: string) {
+  const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
+  const apiToken = process.env.CLOUDFLARE_API_TOKEN;
 
-  if (!apiKey) {
-    throw new Error("GEMINI_API_KEY não configurada.");
+  if (!accountId || !apiToken) {
+    throw new Error("CLOUDFLARE_ACCOUNT_ID ou CLOUDFLARE_API_TOKEN não configurada.");
   }
 
-  const model = process.env.GEMINI_MODEL || "gemini-3.5-flash-lite";
-  const timeout = withTimeout(20000);
+  const model = "@cf/zai-org/glm-4.7-flash";
+  const timeout = withTimeout(25000);
 
   try {
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+      `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/v1/chat/completions`,
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-goog-api-key": apiKey,
-        },
-        body: JSON.stringify({
-          systemInstruction: {
-            parts: [
-              {
-                text:
-                  SYSTEM_PROMPT +
-                  `\nEspecialidade selecionada: ${persona}.`,
-              },
-            ],
-          },
-          contents: messages.map((item) => ({
-            role: item.role === "assistant" ? "model" : "user",
-            parts: [{ text: item.content }],
-          })),
-          generationConfig: {
-            temperature: 0.7,
-            maxOutputTokens: 4096,
-          },
-        }),
-        signal: timeout.signal,
-        cache: "no-store",
-      }
-    );
-
-    const data = await readResponse(response);
-
-    if (!response.ok) {
-      throw new Error(
-        `Gemini HTTP ${response.status}: ${data?.error?.message || "Erro na API"}`
-      );
-    }
-
-    const reply = data?.candidates?.[0]?.content?.parts
-      ?.map((part: { text?: string }) => part.text || "")
-      .join("")
-      .trim();
-
-    if (!reply) {
-      throw new Error("Gemini retornou resposta vazia.");
-    }
-
-    return { reply, provider: "Gemini", model };
-  } catch (error) {
-    if (timeout.signal.aborted) {
-      throw new Error("Gemini: tempo limite de 20 segundos excedido.");
-    }
-
-    throw error;
-  } finally {
-    timeout.clear();
-  }
-}
-
-async function askGroq(messages: ChatMessage[], persona: string) {
-  const apiKey = process.env.GROQ_API_KEY;
-
-  if (!apiKey) {
-    throw new Error("GROQ_API_KEY não configurada.");
-  }
-
-  const model = process.env.GROQ_MODEL || "openai/gpt-oss-120b";
-  const timeout = withTimeout(20000);
-
-  try {
-    const response = await fetch(
-      "https://api.groq.com/openai/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
+          Authorization: `Bearer ${apiToken}`,
         },
         body: JSON.stringify({
           model,
           messages: [
             {
               role: "system",
-              content:
-                SYSTEM_PROMPT +
-                `\nEspecialidade selecionada: ${persona}.`,
+              content: SYSTEM_PROMPT + `\nEspecialidade selecionada: ${persona}.`,
             },
-            ...messages.map((item) => ({
-              role: item.role,
-              content: item.content,
-            })),
+            ...messages.map((item) => ({ role: item.role, content: item.content })),
           ],
           temperature: 0.7,
           max_completion_tokens: 4096,
@@ -340,25 +264,16 @@ async function askGroq(messages: ChatMessage[], persona: string) {
     );
 
     const data = await readResponse(response);
-
     if (!response.ok) {
-      throw new Error(
-        `Groq HTTP ${response.status}: ${data?.error?.message || "Erro na API"}`
-      );
+      throw new Error(`Cloudflare Workers AI HTTP ${response.status}: ${data?.error?.message || data?.errors?.[0]?.message || "Erro na API"}`);
     }
 
     const reply = data?.choices?.[0]?.message?.content?.trim();
+    if (!reply) throw new Error("Cloudflare Workers AI retornou resposta vazia.");
 
-    if (!reply) {
-      throw new Error("Groq retornou resposta vazia.");
-    }
-
-    return { reply, provider: "Groq", model };
+    return { reply, provider: "Cloudflare Workers AI", model };
   } catch (error) {
-    if (timeout.signal.aborted) {
-      throw new Error("Groq: tempo limite de 20 segundos excedido.");
-    }
-
+    if (timeout.signal.aborted) throw new Error("Cloudflare Workers AI: tempo limite de 25 segundos excedido.");
     throw error;
   } finally {
     timeout.clear();
@@ -528,7 +443,7 @@ export async function POST(req: Request) {
       }
 
       const imageModel = isEdit
-        ? "black-forest-labs/flux-1-kontext-pro"
+        ? "@cf/black-forest-labs/flux-2-klein-4b"
         : "@cf/black-forest-labs/flux-1-schnell";
 
       const generationPrompt = isEdit
@@ -547,31 +462,47 @@ export async function POST(req: Request) {
       try {
         const imageUrl = sourceImageUrl;
 
-        const endpoint = isEdit
-          ? `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run`
-          : `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${imageModel}`;
+        const endpoint =
+          `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${imageModel}`;
 
-        const requestBody = isEdit
-          ? {
-              model: imageModel,
-              input: {
-                prompt: generationPrompt.slice(0, 2048),
-                input_image: imageUrl,
-                output_format: "jpeg",
-              },
-            }
-          : {
-              prompt: generationPrompt.slice(0, 2048),
-              steps: 4,
-            };
+        let requestBody: BodyInit;
+        const requestHeaders: Record<string, string> = {
+          Authorization: `Bearer ${apiToken}`,
+        };
+
+        if (isEdit) {
+          if (!imageUrl || !imageUrl.startsWith("data:image/")) {
+            throw new Error("A imagem de referência não está em formato compatível. Gere novamente a imagem antes de editar.");
+          }
+
+          const imageMatch = imageUrl.match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/i);
+          if (!imageMatch) throw new Error("Não foi possível ler a imagem de referência.");
+
+          const imageBuffer = Buffer.from(imageMatch[2], "base64");
+          if (!imageBuffer.length || imageBuffer.length > 2000000) {
+            throw new Error("A imagem preparada para edição ultrapassou o limite permitido.");
+          }
+
+          const formData = new FormData();
+          formData.set("prompt", generationPrompt.slice(0, 2048));
+          formData.set(
+            "input_image_0",
+            new Blob([new Uint8Array(imageBuffer)], { type: imageMatch[1] }),
+            "reference-image"
+          );
+          requestBody = formData;
+        } else {
+          requestHeaders["Content-Type"] = "application/json";
+          requestBody = JSON.stringify({
+            prompt: generationPrompt.slice(0, 2048),
+            steps: 4,
+          });
+        }
 
         const imageResponse = await fetch(endpoint, {
           method: "POST",
-          headers: {
-            Authorization: `Bearer ${apiToken}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(requestBody),
+          headers: requestHeaders,
+          body: requestBody,
           signal: imageTimeout.signal,
           cache: "no-store",
         });
@@ -679,53 +610,19 @@ export async function POST(req: Request) {
       }
     }
 
-    if (process.env.GROQ_API_KEY) {
-      try {
-        const result = await askGroq(messages, persona);
-
-        console.info(
-          "[ScorpionAI] Resposta recebida:",
-          result.provider,
-          result.model
-        );
-
-        return NextResponse.json(result);
-      } catch (error) {
-        console.error("[ScorpionAI] Falha no Groq:", error);
-      }
-    } else {
-      console.error("[ScorpionAI] GROQ_API_KEY não configurada.");
+    try {
+      const result = await askCloudflare(messages, persona);
+      console.info("[ScorpionAI] Resposta recebida:", result.provider, result.model);
+      return NextResponse.json(result);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : "Falha no serviço de inteligência artificial.";
+      console.error("[ScorpionAI] Falha no Cloudflare Workers AI:", error);
+      return NextResponse.json(
+        { reply: `O assistente está temporariamente indisponível: ${detail}`, provider: "Cloudflare Workers AI" },
+        { status: 503 }
+      );
     }
 
-    if (process.env.GEMINI_API_KEY) {
-      try {
-        const result = await askGemini(messages, persona);
-
-        console.info(
-          "[ScorpionAI] Resposta recebida:",
-          result.provider,
-          result.model
-        );
-
-        return NextResponse.json({
-          ...result,
-          fallback: true,
-        });
-      } catch (error) {
-        console.error("[ScorpionAI] Falha no Gemini:", error);
-      }
-    } else {
-      console.error("[ScorpionAI] GEMINI_API_KEY não configurada.");
-    }
-
-    return NextResponse.json(
-      {
-        reply:
-          "No momento, não foi possível obter uma resposta. Tente novamente em instantes.",
-        provider: null,
-      },
-      { status: 503 }
-    );
   } catch (error) {
     console.error("[ScorpionAI] Erro geral:", error);
 
