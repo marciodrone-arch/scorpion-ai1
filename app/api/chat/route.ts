@@ -378,127 +378,90 @@ export async function POST(req: Request) {
       );
     }
 
-    // Geração de imagens pelo AI Horde.
+    // Geração de imagens pela API oficial da OpenAI.
     if (isImageRequest(message)) {
       const prompt = getImagePrompt(message);
       const generationPrompt = buildImagePrompt(message);
-      const apiBase = "https://aihorde.net/api/v2";
-      const headers = {
-        "Content-Type": "application/json",
-        apikey: "0000000000",
-        "Client-Agent": "ScorpionAI:1.0:github.com/marciodrone-arch/scorpion-ai1",
-      };
+      const apiKey = process.env.OPENAI_API_KEY;
+
+      if (!apiKey) {
+        return NextResponse.json(
+          {
+            reply: "A geração de imagens ainda não está configurada. Verifique OPENAI_API_KEY nas variáveis da Vercel.",
+            provider: "OpenAI",
+          },
+          { status: 503 }
+        );
+      }
+
+      const imageTimeout = withTimeout(50000);
 
       try {
-        const submitResponse = await fetch(`${apiBase}/generate/async`, {
-          method: "POST",
-          headers,
-          body: JSON.stringify({
-            prompt: `${generationPrompt} ### ball, sphere, geometric shape, abstract shape, border, frame, black background, dark background, scenery, landscape, grass, trees, plants, people, extra objects`,
-            models: ["SDXL 1.0"],
-            params: {
-              width: 512,
-              height: 512,
-              steps: 25,
+        const imageModel = process.env.OPENAI_IMAGE_MODEL || "gpt-image-2.5-flare";
+
+        const imageResponse = await fetch(
+          "https://api.openai.com/v1/images/generations",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${apiKey}`,
+            },
+            body: JSON.stringify({
+              model: imageModel,
+              prompt: generationPrompt,
+              size: "1024x1024",
+              quality: "low",
+              output_format: "jpeg",
               n: 1,
-              cfg_scale: 7,
-            },
-            nsfw: false,
-            censor_nsfw: true,
-            r2: false,
-            shared: true,
-          }),
-          cache: "no-store",
-        });
+            }),
+            signal: imageTimeout.signal,
+            cache: "no-store",
+          }
+        );
 
-        const submitted = await readResponse(submitResponse);
+        const imageData = await readResponse(imageResponse);
 
-        if (!submitResponse.ok || !submitted?.id) {
-          const errorMessage =
-            submitted?.message ||
-            submitted?.error?.message ||
-            "O serviço de imagens não aceitou o pedido.";
-          throw new Error(errorMessage);
+        if (!imageResponse.ok) {
+          const apiMessage =
+            imageData?.error?.message ||
+            imageData?.message ||
+            `OpenAI HTTP ${imageResponse.status}`;
+
+          throw new Error(apiMessage);
         }
 
-        let imageUrl: string | null = null;
+        const base64Image = imageData?.data?.[0]?.b64_json;
 
-        for (let attempt = 0; attempt < 20; attempt++) {
-          await new Promise((resolve) => setTimeout(resolve, 2000));
-
-          const checkResponse = await fetch(
-            `${apiBase}/generate/check/${submitted.id}`,
-            { headers, cache: "no-store" }
-          );
-
-          const check = await readResponse(checkResponse);
-
-          if (!checkResponse.ok) {
-            throw new Error("Não foi possível consultar a fila de imagens.");
-          }
-
-          if (check.faulted) {
-            throw new Error("A geração falhou no serviço de imagens. Tente novamente.");
-          }
-
-          if (check.done === true || Number(check.finished || 0) >= 1) {
-            const statusResponse = await fetch(
-              `${apiBase}/generate/status/${submitted.id}`,
-              { headers, cache: "no-store" }
-            );
-
-            const status = await readResponse(statusResponse);
-
-            if (!statusResponse.ok) {
-              throw new Error("Não foi possível recuperar a imagem gerada.");
-            }
-
-            const generatedImage = status?.generations?.[0]?.img;
-
-            if (typeof generatedImage === "string" && generatedImage.trim()) {
-              const imageValue = generatedImage.trim();
-
-              imageUrl = imageValue.startsWith("data:image/")
-                ? imageValue
-                : imageValue.startsWith("https://") ||
-                    imageValue.startsWith("http://")
-                  ? imageValue
-                  : `data:image/webp;base64,${imageValue}`;
-            }
-
-            break;
-          }
-        }
-
-        if (!imageUrl) {
-          return NextResponse.json(
-            {
-              reply: "A fila gratuita do AI Horde está demorando. Tente gerar novamente em alguns instantes.",
-              provider: "AI Horde",
-            },
-            { status: 504 }
-          );
+        if (typeof base64Image !== "string" || !base64Image.trim()) {
+          throw new Error("A OpenAI não retornou os dados da imagem.");
         }
 
         return NextResponse.json({
           reply: `Aqui está a imagem gerada para: "${prompt}"`,
-          imageUrl,
-          provider: "AI Horde",
-          model: "SDXL 1.0",
+          imageUrl: `data:image/jpeg;base64,${base64Image}`,
+          provider: "OpenAI",
+          model: imageModel,
         });
       } catch (error) {
         const detail =
-          error instanceof Error ? error.message : "Erro desconhecido";
+          imageTimeout.signal.aborted
+            ? "A geração excedeu o tempo limite de 50 segundos. Tente novamente."
+            : error instanceof Error
+              ? error.message
+              : "Erro desconhecido";
 
-        console.error("[ScorpionAI] Falha no AI Horde:", detail);
+        console.error("[ScorpionAI] Falha na geração OpenAI:", detail);
 
         return NextResponse.json(
           {
             reply: `Não foi possível gerar a imagem: ${detail}`,
-            provider: "AI Horde",
+            provider: "OpenAI",
           },
           { status: 502 }
         );
+      } finally {
+        imageTimeout.clear();
       }
     }
 
