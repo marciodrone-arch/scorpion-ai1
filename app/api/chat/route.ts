@@ -465,10 +465,10 @@ export async function POST(req: Request) {
         const endpoint =
           `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${imageModel}`;
 
-        let requestBody: BodyInit;
-        const requestHeaders: Record<string, string> = {
-          Authorization: `Bearer ${apiToken}`,
-        };
+        const formData = new FormData();
+        formData.set("prompt", generationPrompt.slice(0, 2048));
+        formData.set("width", "1024");
+        formData.set("height", "1024");
 
         if (isEdit) {
           if (!imageUrl || !imageUrl.startsWith("data:image/")) {
@@ -483,26 +483,19 @@ export async function POST(req: Request) {
             throw new Error("A imagem preparada para edição ultrapassou o limite permitido.");
           }
 
-          const formData = new FormData();
-          formData.set("prompt", generationPrompt.slice(0, 2048));
           formData.set(
             "input_image_0",
             new Blob([new Uint8Array(imageBuffer)], { type: imageMatch[1] }),
             "reference-image"
           );
-          requestBody = formData;
-        } else {
-          requestHeaders["Content-Type"] = "application/json";
-          requestBody = JSON.stringify({
-            prompt: generationPrompt.slice(0, 2048),
-            steps: 4,
-          });
         }
 
         const imageResponse = await fetch(endpoint, {
           method: "POST",
-          headers: requestHeaders,
-          body: requestBody,
+          headers: {
+            Authorization: `Bearer ${apiToken}`,
+          },
+          body: formData,
           signal: imageTimeout.signal,
           cache: "no-store",
         });
