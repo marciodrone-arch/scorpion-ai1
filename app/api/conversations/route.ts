@@ -7,6 +7,11 @@ import type { PoolClient } from "pg";
 
 export const runtime = "nodejs";
 
+const MAX_BODY_BYTES = 12 * 1024 * 1024;
+const MAX_MESSAGES = 100;
+const MAX_CONTENT_LENGTH = 20000;
+const MAX_IMAGE_LENGTH = 8 * 1024 * 1024;
+
 export async function GET(req: NextRequest) {
   try {
     const session = await auth.api.getSession({
@@ -20,9 +25,7 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const pool = getPool();
-
-    const result = await pool.query(
+    const result = await getPool().query(
       `SELECT
         c.id,
         c.title,
@@ -54,7 +57,7 @@ export async function GET(req: NextRequest) {
       conversations: result.rows,
     });
   } catch (error) {
-    console.error("Erro ao buscar conversas:", error);
+    console.error("[ScorpionAI] Erro ao buscar conversas:", error);
 
     return NextResponse.json(
       { error: "Erro ao buscar histórico" },
@@ -79,25 +82,97 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Só conecta ao banco depois de confirmar a autenticação.
-    const pool = getPool();
-    client = await pool.connect();
+    const contentLength = Number(
+      req.headers.get("content-length") || 0
+    );
 
-    const body = await req.json();
-    const { id, messages } = body;
-    const userId = session.user.id;
+    if (contentLength > MAX_BODY_BYTES) {
+      return NextResponse.json(
+        { error: "Conversa muito grande para salvar." },
+        { status: 413 }
+      );
+    }
+
+    const rawBody = await req.text();
+
+    if (
+      Buffer.byteLength(rawBody, "utf8") >
+      MAX_BODY_BYTES
+    ) {
+      return NextResponse.json(
+        { error: "Conversa muito grande para salvar." },
+        { status: 413 }
+      );
+    }
+
+    let body: any;
+
+    try {
+      body = JSON.parse(rawBody);
+    } catch {
+      return NextResponse.json(
+        { error: "Dados inválidos." },
+        { status: 400 }
+      );
+    }
+
+    const { id, messages } = body || {};
 
     if (
       typeof id !== "string" ||
-      !id ||
+      !id.trim() ||
+      id.length > 100 ||
       !Array.isArray(messages) ||
       messages.length === 0 ||
-      messages.length > 100
+      messages.length > MAX_MESSAGES
     ) {
       return NextResponse.json(
-        { error: "Dados inválidos" },
+        { error: "Dados da conversa inválidos." },
         { status: 400 }
       );
+    }
+
+    for (const message of messages) {
+      if (
+        !message ||
+        !["user", "assistant"].includes(message.role) ||
+        typeof message.content !== "string" ||
+        message.content.length > MAX_CONTENT_LENGTH
+      ) {
+        return NextResponse.json(
+          { error: "Uma mensagem contém dados inválidos ou muito grandes." },
+          { status: 400 }
+        );
+      }
+
+      if (message.imageUrl !== undefined) {
+        if (
+          typeof message.imageUrl !== "string" ||
+          message.imageUrl.length > MAX_IMAGE_LENGTH ||
+          !(
+            message.imageUrl.startsWith("data:image/") ||
+            message.imageUrl.startsWith("https://")
+          )
+        ) {
+          return NextResponse.json(
+            { error: "Imagem inválida ou muito grande." },
+            { status: 400 }
+          );
+        }
+      }
+
+      if (
+        message.provider !== undefined &&
+        (
+          typeof message.provider !== "string" ||
+          message.provider.length > 100
+        )
+      ) {
+        return NextResponse.json(
+          { error: "Identificação do provedor inválida." },
+          { status: 400 }
+        );
+      }
     }
 
     const firstUserMessage = messages.find(
@@ -106,15 +181,21 @@ export async function POST(req: NextRequest) {
 
     if (!firstUserMessage) {
       return NextResponse.json(
-        { error: "A conversa precisa ter uma mensagem do usuário" },
+        { error: "A conversa precisa ter uma mensagem do usuário." },
         { status: 400 }
       );
     }
 
     const title =
-      String(firstUserMessage.content || "Nova conversa")
+      firstUserMessage.content
         .replace(/\s+/g, " ")
         .slice(0, 80) || "Nova conversa";
+
+    const userId = session.user.id;
+
+    // Só acessa o banco depois de validar e autenticar a solicitação.
+    const pool = getPool();
+    client = await pool.connect();
 
     await client.query("BEGIN");
     transactionStarted = true;
@@ -136,7 +217,7 @@ export async function POST(req: NextRequest) {
       transactionStarted = false;
 
       return NextResponse.json(
-        { error: "Conversa não encontrada" },
+        { error: "Conversa não encontrada." },
         { status: 404 }
       );
     }
@@ -149,14 +230,10 @@ export async function POST(req: NextRequest) {
     );
 
     for (const message of messages) {
-      if (
-        !["user", "assistant"].includes(message.role) ||
-        typeof message.content !== "string"
-      ) {
-        continue;
-      }
-
-      const parts = [
+      const parts: Array<{
+        type: string;
+        text: string;
+      }> = [
         {
           type: "text",
           text: message.content,
@@ -166,14 +243,14 @@ export async function POST(req: NextRequest) {
       if (message.imageUrl) {
         parts.push({
           type: "image",
-          text: String(message.imageUrl),
+          text: message.imageUrl,
         });
       }
 
       if (message.provider) {
         parts.push({
           type: "provider",
-          text: String(message.provider),
+          text: message.provider,
         });
       }
 
@@ -203,14 +280,20 @@ export async function POST(req: NextRequest) {
       try {
         await client.query("ROLLBACK");
       } catch (rollbackError) {
-        console.error("Erro ao desfazer transação:", rollbackError);
+        console.error(
+          "[ScorpionAI] Erro ao desfazer transação:",
+          rollbackError
+        );
       }
     }
 
-    console.error("Erro ao salvar conversa:", error);
+    console.error(
+      "[ScorpionAI] Erro ao salvar conversa:",
+      error
+    );
 
     return NextResponse.json(
-      { error: "Erro ao salvar histórico" },
+      { error: "Erro ao salvar histórico." },
       { status: 500 }
     );
   } finally {
