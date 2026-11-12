@@ -1,3 +1,4 @@
+
 import { NextResponse } from "next/server";
 import { createHash } from "node:crypto";
 import { getPool } from "../../db";
@@ -394,7 +395,7 @@ export async function POST(req: Request) {
           headers,
           body: JSON.stringify({
             prompt: `${generationPrompt} ### ball, sphere, geometric shape, abstract shape, border, frame, black background, dark background, scenery, landscape, grass, trees, plants, people, extra objects`,
-            models: ["AlbedoBase XL (SDXL)"],
+            models: ["SDXL 1.0"],
             params: {
               width: 512,
               height: 512,
@@ -483,7 +484,7 @@ export async function POST(req: Request) {
           reply: `Aqui está a imagem gerada para: "${prompt}"`,
           imageUrl,
           provider: "AI Horde",
-          model: "AlbedoBase XL (SDXL)",
+          model: "SDXL 1.0",
         });
       } catch (error) {
         const detail =
