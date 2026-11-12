@@ -34,6 +34,30 @@ function getStorageKey(userId: string) {
   return `${STORAGE_PREFIX}_${userId}`;
 }
 
+function resizeImageForEditing(imageUrl: string, maxDimension = 512): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => {
+      try {
+        const scale = Math.min(1, maxDimension / Math.max(image.naturalWidth, image.naturalHeight));
+        const width = Math.max(1, Math.round(image.naturalWidth * scale));
+        const height = Math.max(1, Math.round(image.naturalHeight * scale));
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const context = canvas.getContext("2d");
+        if (!context) { reject(new Error("Não foi possível preparar a imagem para edição.")); return; }
+        context.drawImage(image, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", 0.84));
+      } catch {
+        reject(new Error("Não foi possível preparar a imagem. Tente gerar novamente."));
+      }
+    };
+    image.onerror = () => reject(new Error("Não foi possível carregar a imagem para edição. Gere novamente a imagem antes de tentar."));
+    image.src = imageUrl;
+  });
+}
+
 function saveChat(storageKey: string, record: ChatRecord) {
   try {
     const saved = localStorage.getItem(storageKey);
@@ -387,32 +411,31 @@ export default function Home() {
     setCurrentProvider('');
 
     try {
+      const editIntent =
+        /\b(coloque|coloca|adicione|adiciona|acrescente|acrescenta|inclua|inclui|remova|remove|retire|retira|mude|muda|troque|troca|substitua|substitui|altere|altera|modifique|modifica|transforme|transforma|deixe|deixa|ponha|poe|insira|insere|colocar|adicionar|acrescentar|incluir|remover|retirar|mudar|trocar|alterar|modificar)\b/i.test(messageText) &&
+        /\b(imagem|foto|figura|cena|desenho)\b/i.test(messageText);
+
+      const previousImage = [...newMessages]
+        .reverse()
+        .find((item) => item.role === 'assistant' && item.imageUrl)
+        ?.imageUrl;
+
+      const imageForEdit =
+        editIntent && previousImage
+          ? await resizeImageForEditing(previousImage)
+          : undefined;
+
       const res = await fetch('/api/chat', {
         method: 'POST',
         credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: messageText,
-          imageUrl: [...newMessages]
-            .reverse()
-            .find((item) => item.role === 'assistant' && item.imageUrl)
-            ?.imageUrl,
-          messages: (() => {
-            const lastImageIndex = newMessages.reduce(
-              (lastIndex, item, index) => item.imageUrl ? index : lastIndex,
-              -1
-            );
-
-            return newMessages.map((item, index) => ({
-              role: item.role,
-              content: item.content,
-              ...(index === lastImageIndex && item.imageUrl
-                ? { imageUrl: item.imageUrl }
-                : {}),
-            }));
-          })(),
+          imageUrl: imageForEdit,
+          messages: newMessages.map((item) => ({
+            role: item.role,
+            content: item.content,
+          })),
           persona,
         }),
       });
