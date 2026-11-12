@@ -442,9 +442,7 @@ export async function POST(req: Request) {
         );
       }
 
-      const imageModel = isEdit
-        ? "@cf/black-forest-labs/flux-2-klein-4b"
-        : "@cf/black-forest-labs/flux-1-schnell";
+      const imageModel = "@cf/black-forest-labs/flux-2-klein-4b";
 
       const generationPrompt = isEdit
         ? [
