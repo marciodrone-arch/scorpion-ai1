@@ -395,6 +395,10 @@ export default function Home() {
         },
         body: JSON.stringify({
           message: messageText,
+          imageUrl: [...newMessages]
+            .reverse()
+            .find((item) => item.role === 'assistant' && item.imageUrl)
+            ?.imageUrl,
           messages: (() => {
             const lastImageIndex = newMessages.reduce(
               (lastIndex, item, index) => item.imageUrl ? index : lastIndex,
