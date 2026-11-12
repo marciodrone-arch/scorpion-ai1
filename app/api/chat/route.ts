@@ -114,28 +114,28 @@ function getMessages(message: unknown, history: unknown): ChatMessage[] {
   return messages.slice(-MAX_HISTORY_MESSAGES);
 }
 
-// Reconhece pedidos de imagem mesmo sem a palavra "imagem".
+// Reconhece pedidos de imagem em português e inglês.
 function isImageRequest(message: string): boolean {
   const explicitImageRequest =
-    /\b(gerar|gere|crie|criar|desenhe|desenhar|faça|fazer|produza|produzir)\s+(uma?\s+)?(imagem|foto|ilustração|desenho|arte)\b/i.test(message) ||
-    /\b(imagem|foto|ilustração|desenho)\s+de\b/i.test(message);
+    /\b(gerar|gere|crie|criar|desenhe|desenhar|faça|fazer|produza|produzir|generate|create|draw|make|produce)\s+(an?\s+|uma?\s+)?(imagem|image|picture|foto|photo|ilustração|illustration|desenho|drawing|arte|art)\b/i.test(message) ||
+    /\b(imagem|image|picture|foto|photo|ilustração|illustration|desenho|drawing)\s+(de|of)\b/i.test(message);
 
   if (explicitImageRequest) return true;
 
   const textRequest =
-    /\b(texto|história|historinha|resumo|redação|artigo|poema|poesia|roteiro|e-mail|email|mensagem|relatório|explicação|tradução|código|programa|lista|plano|receita escrita)\b/i.test(
+    /\b(texto|história|historinha|resumo|redação|artigo|poema|poesia|roteiro|e-mail|email|mensagem|relatório|explicação|tradução|código|programa|lista|plano|receita escrita|essay|story|summary|article|poem|email|report|explanation|translation|code|program|recipe)\b/i.test(
       message
     );
 
   if (textRequest) return false;
 
   const creationVerb =
-    /\b(crie|criar|gere|gerar|desenhe|desenhar|ilustre|ilustrar|pinte|pintar|faça|fazer|produza|produzir)\b/i.test(
+    /\b(crie|criar|gere|gerar|desenhe|desenhar|ilustre|ilustrar|pinte|pintar|faça|fazer|produza|produzir|create|generate|draw|illustrate|paint|make|produce)\b/i.test(
       message
     );
 
   const visualSubject =
-    /\b(dragão|dragões|animal|animais|cachorro|cães|gato|gatos|leão|leões|lobo|lobos|cavalo|cavalos|pássaro|pássaros|borboleta|borboletas|peixe|peixes|personagem|personagens|robô|robôs|carro|carros|moto|motos|avião|aviões|casa|casas|castelo|castelos|paisagem|paisagens|floresta|florestas|montanha|montanhas|praia|praias|cidade|cidades|planeta|planetas|espaço|galáxia|galáxias|universo|árvore|árvores|flor|flores|jardim|jardins|logo|logotipo|símbolo|ícone|ícones|cartaz|pôster|poster|banner|capa|adesivo|sticker|mascote|mascotes|ilustração|ilustrações|desenho|desenhos|arte|escultura|esculturas|avatar|avatares|retrato|retratos|monstro|monstros|foguete|foguetes|navio|navios|barco|barcos|objeto|objetos|produto|produtos)\b/i.test(
+    /\b(dragão|dragões|animal|animais|cachorro|cães|gato|gatos|leão|leões|lobo|lobos|cavalo|cavalos|pássaro|pássaros|borboleta|borboletas|peixe|peixes|personagem|personagens|robô|robôs|carro|carros|moto|motos|avião|aviões|casa|casas|castelo|castelos|paisagem|paisagens|floresta|florestas|montanha|montanhas|praia|praias|cidade|cidades|planeta|planetas|espaço|galáxia|galáxias|universo|árvore|árvores|flor|flores|jardim|jardins|logo|logotipo|símbolo|ícone|ícones|cartaz|pôster|poster|banner|capa|adesivo|sticker|mascote|mascotes|ilustração|ilustrações|desenho|desenhos|arte|escultura|esculturas|avatar|avatares|retrato|retratos|monstro|monstros|foguete|foguetes|navio|navios|barco|barcos|objeto|objetos|produto|produtos|dragon|animal|animals|dog|dogs|cat|cats|lion|lions|wolf|wolves|horse|horses|bird|birds|butterfly|butterflies|fish|character|characters|robot|robots|car|cars|motorcycle|airplane|house|castle|landscape|forest|mountain|beach|city|planet|space|galaxy|universe|tree|flower|garden|logo|symbol|icon|poster|banner|cover|sticker|mascot|illustration|drawing|art|sculpture|avatar|portrait|monster|rocket|ship|boat|object|product|apple|apples|fruit|fruits)\b/i.test(
       message
     );
 
@@ -146,11 +146,11 @@ function getImagePrompt(message: string): string {
   return (
     message
       .replace(
-        /^(por favor,?\s*)?(gere|gerar|crie|criar|desenhe|desenhar|ilustre|ilustrar|pinte|pintar|faça|fazer|produza|produzir)\s+(uma?\s+)?(imagem|foto|ilustração|desenho|arte)\s*(de|do|da)?/i,
+        /^(por favor,?\s*)?(gere|gerar|crie|criar|desenhe|desenhar|ilustre|ilustrar|pinte|pintar|faça|fazer|produza|produzir|generate|create|draw|illustrate|paint|make|produce)\s+(an?\s+|uma?\s+)?(imagem|image|picture|foto|photo|ilustração|illustration|desenho|drawing|arte|art)\s*(de|do|da|of)?/i,
         ""
       )
       .replace(
-        /^(por favor,?\s*)?(gere|gerar|crie|criar|desenhe|desenhar|ilustre|ilustrar|pinte|pintar|faça|fazer|produza|produzir)\s+(uma?\s+)?/i,
+        /^(por favor,?\s*)?(gere|gerar|crie|criar|desenhe|desenhar|ilustre|ilustrar|pinte|pintar|faça|fazer|produza|produzir|generate|create|draw|illustrate|paint|make|produce)\s+(an?\s+|uma?\s+)?/i,
         ""
       )
       .trim() || message
@@ -385,11 +385,11 @@ export async function POST(req: Request) {
           method: "POST",
           headers,
           body: JSON.stringify({
-            prompt,
+            prompt: `${prompt}, high quality, detailed, clear subject, well-composed image`,
             params: {
               width: 512,
               height: 512,
-              steps: 20,
+              steps: 25,
               n: 1,
               cfg_scale: 7,
             },
