@@ -46,9 +46,7 @@ export default function LoginPage() {
           : 'Login realizado com sucesso!'
       );
 
-      if (mode === 'login') {
-        window.location.href = '/';
-      }
+      window.location.href = '/';
     } catch (error) {
       setMessage(
         error instanceof Error ? error.message : 'Erro inesperado.'
