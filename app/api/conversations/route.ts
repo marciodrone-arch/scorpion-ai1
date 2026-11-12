@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
               'parts', m.parts,
               'createdAt', m."createdAt"
             )
-            ORDER BY m."createdAt"
+            ORDER BY m."createdAt", m.id
           ) FILTER (WHERE m.id IS NOT NULL),
           '[]'::json
         ) AS messages
@@ -256,8 +256,8 @@ export async function POST(req: NextRequest) {
 
       await client.query(
         `INSERT INTO public.messages
-          (id, "conversationId", "userId", role, parts)
-         VALUES ($1, $2, $3, $4, $5::jsonb)`,
+          (id, "conversationId", "userId", role, parts, "createdAt")
+         VALUES ($1, $2, $3, $4, $5::jsonb, clock_timestamp())`,
         [
           randomUUID(),
           id,
