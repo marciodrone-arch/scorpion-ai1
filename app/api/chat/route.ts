@@ -165,18 +165,35 @@ function buildImagePrompt(message: string, previousPrompt?: string): string {
     ? `Original scene: ${previousPrompt}. Requested change: ${currentPrompt}.`
     : getImagePrompt(message);
 
+  const normalized = prompt
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
+  if (/\bmumia\b/.test(normalized) && /\bcueca\b/.test(normalized)) {
+    return [
+      "Create exactly this image: a funny, clearly recognizable ancient Egyptian MUMMY wearing UNDERWEAR.",
+      "Show one full-body mummy as the main and only character.",
+      "The mummy must be wrapped from head to toe in aged off-white linen bandages, with a recognizable mummy face and visible bandage layers.",
+      "The mummy is wearing a simple pair of underwear, clearly visible over the wrapped body.",
+      "The underwear must be unmistakable. Do not replace it with pants, a dress, robe, cloak or loincloth.",
+      "Use a humorous, playful visual interpretation.",
+      "Do not depict a woman in a hood, a robed person, a witch, a monk or an ordinary human.",
+      "Do not add a campfire, flames or unrelated characters or objects.",
+      `Original user request: "${prompt}". Follow this request literally.`
+    ].join(" ");
+  }
+
   return [
-    "Create an image that faithfully follows this exact request:",
-    prompt,
-    "IMPORTANT INSTRUCTIONS:",
-    "Preserve the original scene and all its important elements.",
-    "Apply the requested change clearly and visibly.",
-    "If fire or flames are requested, show clearly visible realistic flames, glowing embers, orange firelight and smoke where appropriate.",
-    "Do not omit requested details.",
-    "Do not add unrelated objects, people, animals, text or decorations.",
-    "Do not change the requested background unless explicitly asked.",
-    "The user's description has priority over generic artistic choices."
-  ].join("\n");
+    "Create an image that follows the user's visual request literally.",
+    `Exact subject and details requested: "${prompt}".`,
+    "The named subject must be the main visible subject, not a substitute.",
+    "Preserve every explicitly requested object, clothing item, action, pose and setting.",
+    "Do not invent a different person, character, scene, clothing or background.",
+    "Do not omit, hide or replace any requested detail.",
+    "Keep unspecified details simple and secondary.",
+    "Use a clear composition with the main subject fully visible."
+  ].join(" ");
 }
 
 async function readResponse(response: Response) {
@@ -357,7 +374,6 @@ export async function POST(req: Request) {
       );
     }
 
-    // Detecta pedidos de criação e alterações de imagens no histórico.
     const previousImageMessage = [...messages.slice(0, -1)]
       .reverse()
       .find((item) => item.role === "user" && isImageRequest(item.content));
@@ -487,7 +503,6 @@ export async function POST(req: Request) {
       }
     }
 
-    // Groq principal; Gemini como fallback.
     if (process.env.GROQ_API_KEY) {
       try {
         const result = await askGroq(messages, persona);
