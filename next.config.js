@@ -12,7 +12,7 @@ const securityHeaders = [
       "object-src 'none'",
       "script-src 'self' 'unsafe-inline'",
       "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: blob: https://image.pollinations.ai",
+      "img-src 'self' data: blob: https:",
       "font-src 'self' data:",
       "connect-src 'self'",
       "frame-src 'none'",
