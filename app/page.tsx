@@ -166,6 +166,16 @@ export default function Home() {
         if (!cancelled) {
           const user = data?.user;
 
+          // Remove o cache global antigo, sem importar dados
+          // que possam pertencer a outro usuário.
+          if (user?.id) {
+            try {
+              localStorage.removeItem(STORAGE_PREFIX);
+            } catch (error) {
+              console.error('Erro ao remover cache antigo:', error);
+            }
+          }
+
           setAuthUser(
             user?.id
               ? {
