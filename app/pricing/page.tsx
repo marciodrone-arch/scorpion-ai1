@@ -1,4 +1,24 @@
+"use client";
+
+import { useState } from "react";
+
+const PIX_KEY = process.env.NEXT_PUBLIC_PIX_KEY || "";
+
 export default function PricingPage() {
+  const [copied, setCopied] = useState(false);
+
+  async function copyPixKey() {
+    if (!PIX_KEY) return;
+
+    try {
+      await navigator.clipboard.writeText(PIX_KEY);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      alert("Não foi possível copiar. Selecione e copie a chave Pix manualmente.");
+    }
+  }
+
   return (
     <main className="min-h-screen bg-[#0a0c10] text-gray-200 px-6 py-12">
       <article className="max-w-4xl mx-auto space-y-8">
@@ -7,9 +27,7 @@ export default function PricingPage() {
         </a>
 
         <header className="text-center space-y-3">
-          <h1 className="text-4xl font-bold text-white">
-            Planos ScorpionAI
-          </h1>
+          <h1 className="text-4xl font-bold text-white">Planos ScorpionAI</h1>
           <p className="text-gray-400">
             Escolha o plano ideal para suas necessidades.
           </p>
@@ -33,23 +51,41 @@ export default function PricingPage() {
 
           <div className="border border-red-500 rounded-xl p-6 space-y-4">
             <h2 className="text-2xl font-bold text-white">Premium</h2>
-            <p className="text-3xl font-bold text-white">Em breve</p>
-            <p className="text-gray-400">Para quem precisa de mais recursos.</p>
+            <p className="text-3xl font-bold text-white">R$ 9,90 <span className="text-base font-normal text-gray-400">/ mês</span></p>
+            <p className="text-gray-400">Plano mensal do ScorpionAI.</p>
             <ul className="space-y-2">
               <li>✓ Maior limite de utilização</li>
               <li>✓ Mais gerações de imagens</li>
               <li>✓ Recursos adicionais</li>
               <li>✓ Atendimento prioritário</li>
             </ul>
-            <div className="text-center bg-gray-800 text-gray-400 rounded-lg p-3">
-              Disponível em breve
-            </div>
+
+            {PIX_KEY ? (
+              <div className="space-y-3 rounded-lg bg-gray-900 p-4">
+                <p className="font-semibold text-white">Pagamento via Pix (banco Neon)</p>
+                <p className="text-sm text-gray-400">Use a chave Pix abaixo para realizar o pagamento de R$ 9,90.</p>
+                <div className="break-all rounded bg-black/40 p-3 text-sm text-white">{PIX_KEY}</div>
+                <button
+                  type="button"
+                  onClick={copyPixKey}
+                  className="w-full rounded-lg bg-red-600 p-3 font-semibold text-white hover:bg-red-700"
+                >
+                  {copied ? "Chave Pix copiada!" : "Copiar chave Pix"}
+                </button>
+                <p className="text-xs text-amber-300">
+                  Guarde o comprovante. A confirmação do pagamento e a liberação do Premium serão feitas manualmente.
+                </p>
+              </div>
+            ) : (
+              <div className="rounded-lg bg-gray-800 p-4 text-center text-sm text-gray-300">
+                Pagamento Pix em configuração. Em breve você poderá pagar pelo banco Neon.
+              </div>
+            )}
           </div>
         </section>
 
         <p className="text-center text-sm text-gray-500">
-          Os recursos e condições dos planos poderão ser atualizados.
-          O plano Premium ainda não está disponível para contratação.
+          O pagamento do Premium é mensal. A liberação do acesso ocorre somente após a confirmação do recebimento.
         </p>
       </article>
     </main>
