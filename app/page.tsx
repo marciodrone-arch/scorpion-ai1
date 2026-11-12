@@ -18,11 +18,12 @@ type ChatRecord = {
 };
 
 type AuthUser = {
+  id: string;
   name?: string;
   email?: string;
 };
 
-const STORAGE_KEY = 'scorpion_chat_records';
+const STORAGE_PREFIX = 'scorpion_chat_records';
 
 const initialMessage: Message = {
   role: 'assistant',
@@ -30,9 +31,13 @@ const initialMessage: Message = {
     'Olá! Eu sou o ScorpionAI. Estou pronto para conversar, gerar imagens, traduzir textos e estruturar informações para o seu negócio. Como posso ajudar hoje?',
 };
 
-function saveChat(record: ChatRecord) {
+function getStorageKey(userId: string) {
+  return `${STORAGE_PREFIX}_${userId}`;
+}
+
+function saveChat(storageKey: string, record: ChatRecord) {
   try {
-    const saved = localStorage.getItem(STORAGE_KEY);
+    const saved = localStorage.getItem(storageKey);
     const chats: ChatRecord[] = saved ? JSON.parse(saved) : [];
 
     const updated = [
@@ -40,7 +45,7 @@ function saveChat(record: ChatRecord) {
       ...chats.filter((chat) => chat.id !== record.id),
     ].sort((a, b) => b.updatedAt - a.updatedAt);
 
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated.slice(0, 50)));
+    localStorage.setItem(storageKey, JSON.stringify(updated.slice(0, 50)));
   } catch (error) {
     console.error('Erro ao salvar conversa:', error);
   }
@@ -139,7 +144,7 @@ export default function Home() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Verifica se existe uma sessão ativa no ScorpionAI.
+  // Verifica a sessão antes de carregar qualquer histórico.
   useEffect(() => {
     let cancelled = false;
 
@@ -159,18 +164,24 @@ export default function Home() {
         const data = await response.json();
 
         if (!cancelled) {
-          setAuthUser(data?.user || null);
+          const user = data?.user;
+
+          setAuthUser(
+            user?.id
+              ? {
+                  id: String(user.id),
+                  name: user.name,
+                  email: user.email,
+                }
+              : null
+          );
         }
       } catch (error) {
         console.error('Erro ao verificar sessão:', error);
 
-        if (!cancelled) {
-          setAuthUser(null);
-        }
+        if (!cancelled) setAuthUser(null);
       } finally {
-        if (!cancelled) {
-          setAuthLoading(false);
-        }
+        if (!cancelled) setAuthLoading(false);
       }
     }
 
@@ -181,15 +192,26 @@ export default function Home() {
     };
   }, []);
 
-  // Carrega o histórico local e o histórico salvo no Neon.
+  // Cada usuário carrega somente seu próprio histórico.
   useEffect(() => {
+    if (authLoading) return;
+
     let cancelled = false;
 
     async function loadConversations() {
+      if (!authUser?.id) {
+        setRecentChats([]);
+        setActiveChatId(Date.now().toString());
+        setMessages([initialMessage]);
+        setCurrentProvider('');
+        return;
+      }
+
+      const storageKey = getStorageKey(authUser.id);
       let localChats: ChatRecord[] = [];
 
       try {
-        const saved = localStorage.getItem(STORAGE_KEY);
+        const saved = localStorage.getItem(storageKey);
 
         if (saved) {
           const parsed = JSON.parse(saved);
@@ -242,16 +264,14 @@ export default function Home() {
 
         setRecentChats(mergedChats);
 
-        try {
-          localStorage.setItem(
-            STORAGE_KEY,
-            JSON.stringify(mergedChats)
-          );
-        } catch (error) {
-          console.error('Erro ao atualizar histórico local:', error);
-        }
+        localStorage.setItem(
+          storageKey,
+          JSON.stringify(mergedChats)
+        );
       } catch (error) {
-        console.error('Erro ao carregar histórico do Neon:', error);
+        if (!cancelled) {
+          console.error('Erro ao carregar histórico do Neon:', error);
+        }
       }
     }
 
@@ -260,7 +280,7 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [authLoading, authUser?.id]);
 
   const filteredChats = recentChats.filter((chat) =>
     chat.title.toLowerCase().includes(searchTerm.toLowerCase())
@@ -278,6 +298,8 @@ export default function Home() {
     id: string,
     conversationMessages: Message[]
   ) => {
+    if (!authUser?.id || authLoading) return;
+
     const firstUserMessage = conversationMessages.find(
       (message) => message.role === 'user'
     );
@@ -296,7 +318,9 @@ export default function Home() {
       updatedAt: Date.now(),
     };
 
-    saveChat(record);
+    const storageKey = getStorageKey(authUser.id);
+
+    saveChat(storageKey, record);
 
     setRecentChats((previous) =>
       [
@@ -335,6 +359,11 @@ export default function Home() {
     const messageText = (textToSend ?? input).trim();
 
     if (!messageText || loading) return;
+
+    if (authLoading || !authUser?.id) {
+      alert('Entre na sua conta para conversar com o ScorpionAI.');
+      return;
+    }
 
     const chatId = activeChatId || Date.now().toString();
 
@@ -421,7 +450,7 @@ export default function Home() {
   };
 
   const openChat = (chat: ChatRecord) => {
-    if (loading) return;
+    if (loading || !authUser?.id) return;
 
     setMessages(chat.messages);
     setActiveChatId(chat.id);
@@ -442,9 +471,9 @@ export default function Home() {
     }
   };
 
-  // Encerra a sessão da conta e mostra detalhes caso o servidor retorne erro.
+  // Encerra a sessão e limpa o cache local da conta.
   const handleSignOut = async () => {
-    if (signingOut) return;
+    if (signingOut || !authUser?.id) return;
 
     setSigningOut(true);
 
@@ -480,7 +509,18 @@ export default function Home() {
         );
       }
 
+      try {
+        localStorage.removeItem(getStorageKey(authUser.id));
+      } catch (error) {
+        console.error('Erro ao limpar histórico local:', error);
+      }
+
+      setRecentChats([]);
+      setMessages([initialMessage]);
+      setActiveChatId('');
+      setCurrentProvider('');
       setAuthUser(null);
+
       window.location.href = '/login';
     } catch (error) {
       console.error('Erro detalhado ao sair da conta:', error);
@@ -536,7 +576,7 @@ export default function Home() {
 
           <button
             onClick={startNewChat}
-            disabled={loading}
+            disabled={loading || !authUser}
             className="w-full bg-red-600 hover:bg-red-700 text-white font-medium py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-red-900/30 disabled:opacity-50"
           >
             <span className="text-lg font-bold">+</span>
@@ -586,7 +626,8 @@ export default function Home() {
                 setIsSidebarOpen(false);
                 handleSend('Crie uma imagem de um leão moderno e futurista');
               }}
-              className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-gray-300 hover:bg-[#181b24] transition-colors text-left"
+              disabled={!authUser || loading}
+              className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-gray-300 hover:bg-[#181b24] transition-colors text-left disabled:opacity-50"
             >
               <span>🎨</span><span>Criar imagens</span>
             </button>
@@ -596,7 +637,8 @@ export default function Home() {
                 setIsSidebarOpen(false);
                 handleSend('Me ajude a estruturar uma estratégia comercial forte');
               }}
-              className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-gray-300 hover:bg-[#181b24] transition-colors text-left"
+              disabled={!authUser || loading}
+              className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-gray-300 hover:bg-[#181b24] transition-colors text-left disabled:opacity-50"
             >
               <span>📈</span><span>Assistente comercial</span>
             </button>
@@ -606,7 +648,8 @@ export default function Home() {
                 setIsSidebarOpen(false);
                 handleSend('Escreva um anúncio de alta conversão');
               }}
-              className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-gray-300 hover:bg-[#181b24] transition-colors text-left"
+              disabled={!authUser || loading}
+              className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-gray-300 hover:bg-[#181b24] transition-colors text-left disabled:opacity-50"
             >
               <span>✍️</span><span>Criar anúncios</span>
             </button>
@@ -640,7 +683,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Área da conta e botão de sair. */}
         <div className="pt-3 border-t border-gray-800/80 shrink-0 space-y-3">
 
           {authLoading ? (
@@ -823,7 +865,7 @@ export default function Home() {
 
             <button
               onClick={() => handleSend()}
-              disabled={loading || !input.trim()}
+              disabled={loading || !input.trim() || !authUser}
               className="absolute right-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white px-4 py-2 rounded-xl text-xs font-semibold transition-all shadow-md shadow-red-900/20 flex items-center gap-1.5"
             >
               <span>Enviar</span>
