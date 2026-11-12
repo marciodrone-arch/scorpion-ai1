@@ -138,7 +138,12 @@ function isImageRequest(message: string): boolean {
       message
     );
 
-  return creationVerb && visualSubject;
+  // Tratamento especial para palavras acentuadas:
+  // JavaScript não considera "ã" e "ç" caracteres de palavra em \b.
+  const hasPortugueseApple =
+    /(?:^|[^a-zA-Z0-9_])maç(?:ã|ãs)(?=$|[^a-zA-Z0-9_])/i.test(message);
+
+  return creationVerb && (visualSubject || hasPortugueseApple);
 }
 
 function getImagePrompt(message: string): string {
@@ -159,7 +164,12 @@ function getImagePrompt(message: string): string {
 function buildImagePrompt(message: string): string {
   const prompt = getImagePrompt(message);
 
-  if (/\b(maçã|maçãs|apple|apples)\b/i.test(prompt)) {
+  const isApple =
+    /(?:^|[^a-zA-Z0-9_])(?:maçã|maçãs|apple|apples)(?=$|[^a-zA-Z0-9_])/i.test(
+      prompt
+    );
+
+  if (isApple) {
     return "one single real red apple fruit, unmistakably an apple, natural slightly asymmetrical apple shape, visible short brown stem and one small green leaf, smooth natural red apple skin with subtle texture, isolated and centered, pure white seamless studio background, professional photorealistic product photography, soft even studio lighting, sharp focus, no other objects";
   }
 
