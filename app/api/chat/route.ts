@@ -9,8 +9,6 @@ export const maxDuration = 60;
 
 const SYSTEM_PROMPT = `
 Você é o ScorpionAI, um assistente de inteligência artificial avançado.
-
-REGRAS:
 - Responda em português do Brasil, salvo pedido contrário.
 - Seja natural, claro, cordial e objetivo.
 - Considere o histórico da conversa.
@@ -122,21 +120,15 @@ function isImageRequest(message: string): boolean {
   if (explicitImageRequest) return true;
 
   const textRequest =
-    /\b(texto|história|historinha|resumo|redação|artigo|poema|poesia|roteiro|e-mail|email|mensagem|relatório|explicação|tradução|código|programa|lista|plano|receita escrita|essay|story|summary|article|poem|email|report|explanation|translation|code|program|recipe)\b/i.test(
-      message
-    );
+    /\b(texto|história|historinha|resumo|redação|artigo|poema|poesia|roteiro|e-mail|email|mensagem|relatório|explicação|tradução|código|programa|lista|plano|receita escrita|essay|story|summary|article|poem|email|report|explanation|translation|code|program|recipe)\b/i.test(message);
 
   if (textRequest) return false;
 
   const creationVerb =
-    /\b(crie|criar|gere|gerar|desenhe|desenhar|ilustre|ilustrar|pinte|pintar|faça|fazer|produza|produzir|create|generate|draw|illustrate|paint|make|produce)\b/i.test(
-      message
-    );
+    /\b(crie|criar|gere|gerar|desenhe|desenhar|ilustre|ilustrar|pinte|pintar|faça|fazer|produza|produzir|create|generate|draw|illustrate|paint|make|produce)\b/i.test(message);
 
   const visualSubject =
-    /\b(dragão|dragões|animal|animais|cachorro|cães|gato|gatos|leão|leões|lobo|lobos|cavalo|cavalos|pássaro|pássaros|borboleta|borboletas|peixe|peixes|personagem|personagens|robô|robôs|carro|carros|moto|motos|avião|aviões|casa|casas|castelo|castelos|paisagem|paisagens|floresta|florestas|montanha|montanhas|praia|praias|cidade|cidades|planeta|planetas|espaço|galáxia|galáxias|universo|árvore|árvores|flor|flores|jardim|jardins|logo|logotipo|símbolo|ícone|ícones|cartaz|pôster|poster|banner|capa|adesivo|sticker|mascote|mascotes|ilustração|ilustrações|desenho|desenhos|arte|escultura|esculturas|avatar|avatares|retrato|retratos|monstro|monstros|foguete|foguetes|navio|navios|barco|barcos|objeto|objetos|produto|produtos|dragon|animal|animals|dog|dogs|cat|cats|lion|lions|wolf|wolves|horse|horses|bird|birds|butterfly|butterflies|fish|character|characters|robot|robots|car|cars|motorcycle|airplane|house|castle|landscape|forest|mountain|beach|city|planet|space|galaxy|universe|tree|flower|garden|logo|symbol|icon|poster|banner|cover|sticker|mascot|illustration|drawing|art|sculpture|avatar|portrait|monster|rocket|ship|boat|object|product|apple|apples|fruit|fruits)\b/i.test(
-      message
-    );
+    /\b(dragão|dragões|animal|animais|cachorro|cães|gato|gatos|leão|leões|lobo|lobos|cavalo|cavalos|pássaro|pássaros|borboleta|borboletas|peixe|peixes|personagem|personagens|robô|robôs|carro|carros|moto|motos|avião|aviões|casa|casas|castelo|castelos|paisagem|paisagens|floresta|florestas|montanha|montanhas|praia|praias|cidade|cidades|planeta|planetas|espaço|galáxia|galáxias|universo|árvore|árvores|flor|flores|jardim|jardins|logo|logotipo|símbolo|ícone|ícones|cartaz|pôster|poster|banner|capa|adesivo|sticker|mascote|mascotes|ilustração|ilustrações|desenho|desenhos|arte|escultura|esculturas|avatar|avatares|retrato|retratos|monstro|monstros|foguete|foguetes|navio|navios|barco|barcos|objeto|objetos|produto|produtos|dragon|animal|animals|dog|dogs|cat|cats|lion|lions|wolf|wolves|horse|horses|bird|birds|butterfly|butterflies|fish|character|characters|robot|robots|car|cars|motorcycle|airplane|house|castle|landscape|forest|mountain|beach|city|planet|space|galaxy|universe|tree|flower|garden|logo|symbol|icon|poster|banner|cover|sticker|mascot|illustration|drawing|art|sculpture|avatar|portrait|monster|rocket|ship|boat|object|product|apple|apples|fruit|fruits)\b/i.test(message);
 
   const hasPortugueseApple =
     /(?:^|[^a-zA-Z0-9_])maç(?:ã|ãs)(?=$|[^a-zA-Z0-9_])/i.test(message);
@@ -163,9 +155,7 @@ function buildImagePrompt(message: string): string {
   const prompt = getImagePrompt(message);
 
   const isApple =
-    /(?:^|[^a-zA-Z0-9_])(?:maçã|maçãs|apple|apples)(?=$|[^a-zA-Z0-9_])/i.test(
-      prompt
-    );
+    /(?:^|[^a-zA-Z0-9_])(?:maçã|maçãs|apple|apples)(?=$|[^a-zA-Z0-9_])/i.test(prompt);
 
   if (isApple) {
     return "one single real red apple fruit, unmistakably an apple, natural slightly asymmetrical apple shape, visible short brown stem and one small green leaf, smooth natural red apple skin with subtle texture, isolated and centered, pure white seamless studio background, professional photorealistic product photography, soft even studio lighting, sharp focus, no other objects";
@@ -396,7 +386,7 @@ export async function POST(req: Request) {
       if (!accountId || !apiToken) {
         return NextResponse.json(
           {
-            reply: "A geração de imagens não está configurada. Verifique CLOUDFLARE_ACCOUNT_ID e CLOUDFLARE_API_TOKEN na Vercel.",
+            reply: "A geração de imagens não está configurada. Verifique as variáveis da Cloudflare na Vercel.",
             provider: "Cloudflare",
           },
           { status: 503 }
@@ -413,11 +403,12 @@ export async function POST(req: Request) {
           {
             method: "POST",
             headers: {
-              "Authorization": `Bearer ${apiToken}`,
+              Authorization: `Bearer ${apiToken}`,
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
-              prompt: generationPrompt,
+              prompt: generationPrompt.slice(0, 2048),
+              steps: 4,
             }),
             signal: imageTimeout.signal,
             cache: "no-store",
@@ -425,41 +416,74 @@ export async function POST(req: Request) {
         );
 
         if (!imageResponse.ok) {
-          const errorText = await imageResponse.text();
-          let errorMessage = errorText.slice(0, 500);
-
-          try {
-            const errorData = JSON.parse(errorText);
-            errorMessage =
-              errorData?.errors?.[0]?.message ||
-              errorData?.messages?.[0]?.message ||
-              errorData?.error?.message ||
-              errorMessage;
-          } catch {
-            // Mantém a mensagem original retornada pela API.
-          }
+          const errorData = await readResponse(imageResponse);
+          const detail =
+            errorData?.errors?.[0]?.message ||
+            errorData?.messages?.[0]?.message ||
+            errorData?.result?.error ||
+            errorData?.error?.message ||
+            JSON.stringify(errorData).slice(0, 500);
 
           throw new Error(
-            `Cloudflare HTTP ${imageResponse.status}: ${errorMessage}`
+            `Cloudflare HTTP ${imageResponse.status}: ${detail}`
           );
         }
 
-        const imageBuffer = Buffer.from(
-          await imageResponse.arrayBuffer()
-        );
+        const contentType =
+          imageResponse.headers.get("content-type") || "";
 
-        if (!imageBuffer.length) {
-          throw new Error("A Cloudflare retornou uma imagem vazia.");
+        let base64Image = "";
+        let imageMime = "image/jpeg";
+
+        // A API pode retornar imagem binária ou JSON com result.image.
+        if (contentType.toLowerCase().includes("image/")) {
+          const imageBuffer = Buffer.from(
+            await imageResponse.arrayBuffer()
+          );
+
+          if (!imageBuffer.length) {
+            throw new Error("A Cloudflare retornou uma imagem vazia.");
+          }
+
+          base64Image = imageBuffer.toString("base64");
+          imageMime = contentType.split(";")[0];
+        } else {
+          const imageData = await readResponse(imageResponse);
+
+          const returnedImage =
+            imageData?.result?.image ||
+            imageData?.image;
+
+          if (
+            imageData?.success === false ||
+            typeof returnedImage !== "string" ||
+            !returnedImage.trim()
+          ) {
+            const detail =
+              imageData?.errors?.[0]?.message ||
+              imageData?.messages?.[0]?.message ||
+              "A resposta não contém result.image.";
+
+            throw new Error(
+              `Resposta inválida da Cloudflare: ${detail}`
+            );
+          }
+
+          base64Image = returnedImage;
+
+          const dataUriMatch = returnedImage.match(
+            /^data:(image\/[^;]+);base64,(.+)$/i
+          );
+
+          if (dataUriMatch) {
+            imageMime = dataUriMatch[1];
+            base64Image = dataUriMatch[2];
+          }
         }
 
-        const contentType =
-          imageResponse.headers.get("content-type") || "image/png";
-
-        const imageMime = contentType.includes("image/")
-          ? contentType.split(";")[0]
-          : "image/png";
-
-        const base64Image = imageBuffer.toString("base64");
+        if (!base64Image || base64Image.length < 100) {
+          throw new Error("Os dados da imagem recebida são inválidos.");
+        }
 
         return NextResponse.json({
           reply: `Aqui está a imagem gerada para: "${prompt}"`,
@@ -470,7 +494,7 @@ export async function POST(req: Request) {
       } catch (error) {
         const detail =
           imageTimeout.signal.aborted
-            ? "A geração excedeu o tempo limite de 50 segundos. Tente novamente."
+            ? "Tempo limite de 50 segundos excedido."
             : error instanceof Error
               ? error.message
               : "Erro desconhecido";
