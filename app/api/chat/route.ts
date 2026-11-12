@@ -385,7 +385,7 @@ export async function POST(req: Request) {
           method: "POST",
           headers,
           body: JSON.stringify({
-            prompt: `${prompt}, high quality, detailed, clear subject, well-composed image`,
+            prompt: `${prompt}, isolated subject, centered composition, pure solid white seamless studio background, clean white backdrop, professional studio product photography, evenly lit, no environment, no scenery, no grass, no lawn, no trees, no plants, no garden, no landscape, no beach, no sky, no extra objects ### grass, lawn, garden, trees, plants, forest, landscape, beach, sky, outdoor background, scenery, colored background, room, furniture, people, extra objects`,
             params: {
               width: 512,
               height: 512,
