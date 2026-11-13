@@ -22,7 +22,7 @@ export async function GET(req: Request) {
     const admin = await requireAdmin(req);
     if (!admin) return NextResponse.json({ error: "Acesso não autorizado." }, { status: 403 });
 
-    const [usersResult, statsResult, paymentsResult, plansResult] = await Promise.all([
+    const [usersResult, statsResult, paymentsResult, plansResult, trendResult] = await Promise.all([
       getPool().query(`
         SELECT
           u.id, u.name, u.email, u."createdAt", u.banned,
@@ -78,6 +78,42 @@ export async function GET(req: Request) {
         SELECT id, name, description, "priceCents", "dailyMessages", "maxInputChars",
           "maxOutputTokens", "historyDays", active
         FROM public.plans ORDER BY "sortOrder", name
+      `),
+      getPool().query(`
+        WITH days AS (
+          SELECT generate_series(CURRENT_DATE - INTERVAL '6 days', CURRENT_DATE, INTERVAL '1 day')::date AS day
+        ),
+        signups AS (
+          SELECT "createdAt"::date AS day, COUNT(*)::int AS total
+          FROM public."user" WHERE role <> 'admin' AND "createdAt" >= CURRENT_DATE - INTERVAL '6 days'
+          GROUP BY 1
+        ),
+        sessions AS (
+          SELECT "createdAt"::date AS day, COUNT(*)::int AS total
+          FROM public.session WHERE "createdAt" >= CURRENT_DATE - INTERVAL '6 days'
+          GROUP BY 1
+        ),
+        messages AS (
+          SELECT "createdAt"::date AS day, COUNT(*)::int AS total
+          FROM public.messages WHERE role = 'user' AND "createdAt" >= CURRENT_DATE - INTERVAL '6 days'
+          GROUP BY 1
+        ),
+        revenue AS (
+          SELECT "createdAt"::date AS day, COALESCE(SUM("amountCents"), 0)::int AS cents
+          FROM public.payments WHERE status = 'confirmed_manual' AND "createdAt" >= CURRENT_DATE - INTERVAL '6 days'
+          GROUP BY 1
+        )
+        SELECT days.day,
+          COALESCE(signups.total, 0)::int AS signups,
+          COALESCE(sessions.total, 0)::int AS sessions,
+          COALESCE(messages.total, 0)::int AS messages,
+          COALESCE(revenue.cents, 0)::int AS "revenueCents"
+        FROM days
+        LEFT JOIN signups USING (day)
+        LEFT JOIN sessions USING (day)
+        LEFT JOIN messages USING (day)
+        LEFT JOIN revenue USING (day)
+        ORDER BY days.day
       `)
     ]);
 
@@ -85,7 +121,7 @@ export async function GET(req: Request) {
       users: usersResult.rows,
       stats: statsResult.rows[0],
       recentPayments: paymentsResult.rows,
-      plans: plansResult.rows,
+      plans: plansResult.rows,\n      trend: trendResult.rows,
     });
   } catch (error) {
     console.error("[ScorpionAI admin] Erro ao carregar painel:", error);
