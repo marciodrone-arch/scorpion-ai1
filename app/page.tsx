@@ -918,27 +918,12 @@ export default function Home() {
               <div className="text-[11px] font-bold text-red-400 px-2 mb-2 uppercase tracking-wider">
                 Administração
               </div>
-              <a
-                href="/admin"
-                onClick={() => setIsSidebarOpen(false)}
-                className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-gray-200 hover:bg-red-500/10 transition-colors"
-              >
-                <span>🛠️</span><span>Gerenciar usuários e planos</span>
-              </a>
-              <a
-                href="/pricing"
-                onClick={() => setIsSidebarOpen(false)}
-                className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-gray-200 hover:bg-red-500/10 transition-colors"
-              >
-                <span>💳</span><span>Planos e preços</span>
-              </a>
-              <a
-                href="/support"
-                onClick={() => setIsSidebarOpen(false)}
-                className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-gray-200 hover:bg-red-500/10 transition-colors"
-              >
-                <span>📩</span><span>Suporte</span>
-              </a>
+              <a href="/admin#visao-geral" onClick={() => setIsSidebarOpen(false)} className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-gray-200 hover:bg-red-500/10 transition-colors"><span>📊</span><span>Visão geral</span></a>
+              <a href="/admin#clientes" onClick={() => setIsSidebarOpen(false)} className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-gray-200 hover:bg-red-500/10 transition-colors"><span>👥</span><span>Clientes e contas</span></a>
+              <a href="/admin#acessos" onClick={() => setIsSidebarOpen(false)} className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-gray-200 hover:bg-red-500/10 transition-colors"><span>📈</span><span>Acessos e utilização</span></a>
+              <a href="/admin#financeiro" onClick={() => setIsSidebarOpen(false)} className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-gray-200 hover:bg-red-500/10 transition-colors"><span>💰</span><span>Financeiro e pagamentos</span></a>
+              <a href="/admin#planos" onClick={() => setIsSidebarOpen(false)} className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-gray-200 hover:bg-red-500/10 transition-colors"><span>💳</span><span>Planos e preços</span></a>
+              <a href="/support" onClick={() => setIsSidebarOpen(false)} className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-gray-200 hover:bg-red-500/10 transition-colors"><span>📩</span><span>Suporte</span></a>
             </nav>
           )}
 
