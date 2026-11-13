@@ -586,16 +586,20 @@ export default function Home() {
       recognition.onerror = (event: any) => {
         setIsListening(false);
         if (event.error !== 'aborted') {
-          alert('Não foi possível reconhecer sua voz. Confira a permissão do microfone e tente novamente.');
+          const details = event.error || 'erro_desconhecido';
+          alert(`Falha no reconhecimento de voz. Código do erro: ${details}. Verifique se o Chrome está atualizado e se o microfone está liberado para este site.`);
+          console.error('ScorpionAI SpeechRecognition error:', event.error, event.message || '');
         }
       };
       recognition.onend = () => setIsListening(false);
       recognitionRef.current = recognition;
       recognition.start();
       setIsListening(true);
-    } catch (error) {
+    } catch (error: any) {
       setIsListening(false);
-      alert('Não foi possível iniciar o microfone. Verifique a permissão do navegador.');
+      const details = error?.name || error?.message || 'erro_desconhecido';
+      alert(`Não foi possível iniciar o reconhecimento de voz. Detalhe: ${details}`);
+      console.error('ScorpionAI SpeechRecognition start error:', error);
     }
   };
 
