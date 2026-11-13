@@ -51,7 +51,7 @@ export default function PrivacyPage() {
         </section>
 
         <p className="text-sm text-gray-400 border-t border-gray-800 pt-5">
-          ScorpionAI — Esta política deve ser revisada e complementada com os dados oficiais de contato do responsável pelo serviço antes do lançamento público.
+          Controlador dos dados: Marcio Munhoz, responsável pelo ScorpionAI. Para exercer direitos previstos na LGPD, solicitar acesso, correção ou exclusão de dados, ou tratar de privacidade, escreva para marciodrone@gmail.com.
         </p>
       </article>
     </main>
