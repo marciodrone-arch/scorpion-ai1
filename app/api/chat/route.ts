@@ -147,7 +147,6 @@ function getMessages(message: unknown, history: unknown): ChatMessage[] {
         .slice(-MAX_HISTORY_MESSAGES)
         .map((item) => {
           const imageUrl =
-            item.role === "assistant" &&
             typeof item.imageUrl === "string" &&
             item.imageUrl.length <= MAX_BODY_BYTES &&
             (
@@ -467,6 +466,13 @@ export async function POST(req: Request) {
         : undefined;
 
     const messages = getMessages(message, body?.messages);
+    const previousUserImage = [...messages]
+      .reverse()
+      .find((item) => item.role === "user" && typeof item.imageUrl === "string")
+      ?.imageUrl;
+    const isImageFollowUp =
+      /\\b(imagem|foto|figura|visual|nela|nesta|nessa|anterior|enviad[ao]|elementos|aparece|identific|analis|descrev|contexto)\\b/i.test(message);
+    const imageForVision = uploadedImage || (isImageFollowUp ? previousUserImage : undefined);
 
     const persona =
       typeof body?.persona === "string"
@@ -536,9 +542,9 @@ export async function POST(req: Request) {
       );
     }
 
-    if (uploadedImage) {
+    if (imageForVision) {
       try {
-        const result = await askCloudflareVision(messages, persona, uploadedImage);
+        const result = await askCloudflareVision(messages, persona, imageForVision);
         console.info("[ScorpionAI] Análise visual recebida:", result.model);
         return NextResponse.json(result);
       } catch (error) {
