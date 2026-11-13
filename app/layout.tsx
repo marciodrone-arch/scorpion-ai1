@@ -5,6 +5,9 @@ import './globals.css';
 export const metadata: Metadata = {
   title: 'ScorpionAI - Inteligência Artificial Comercial',
   description: 'Painel Comercial de Inteligência Artificial',
+  verification: {
+    google: '3irPN1LYwdo9ZuSrykFpve0pV8hrlctTo3DG2_RJFi8',
+  },
 };
 
 export default function RootLayout({
