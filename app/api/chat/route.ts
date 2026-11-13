@@ -268,6 +268,57 @@ async function readResponse(response: Response) {
   }
 }
 
+let metaVisionLicenseAccepted = false;
+
+async function askCloudflareVision(messages: ChatMessage[], persona: string, imageUrl: string) {
+  const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
+  const apiToken = process.env.CLOUDFLARE_API_TOKEN;
+  if (!accountId || !apiToken) throw new Error("Configuração da Cloudflare ausente.");
+
+  const endpoint = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/@cf/meta/llama-3.2-11b-vision-instruct`;
+  const headers = { "Content-Type": "application/json", Authorization: `Bearer ${apiToken}` };
+
+  if (!metaVisionLicenseAccepted) {
+    const licenseResponse = await fetch(endpoint, {
+      method: "POST", headers, body: JSON.stringify({ prompt: "agree" }), cache: "no-store",
+    });
+    const licenseData = await readResponse(licenseResponse);
+    if (!licenseResponse.ok || licenseData?.success === false) {
+      throw new Error(`Aceite da licença Meta não confirmado: ${licenseData?.errors?.[0]?.message || "verifique a conta Cloudflare"}`);
+    }
+    metaVisionLicenseAccepted = true;
+  }
+
+  const timeout = withTimeout(45000);
+  try {
+    const response = await fetch(endpoint, {
+      method: "POST", headers,
+      body: JSON.stringify({
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT + `\\nEspecialidade: ${persona}. Analise a imagem enviada. Se for um print, leia os textos visíveis e explique o que fazer.` },
+          ...messages.map((item) => ({ role: item.role, content: item.content })),
+        ],
+        image: imageUrl,
+        max_tokens: 1200,
+        temperature: 0.4,
+      }),
+      signal: timeout.signal, cache: "no-store",
+    });
+    const data = await readResponse(response);
+    if (!response.ok || data?.success === false) {
+      throw new Error(`Cloudflare Vision HTTP ${response.status}: ${data?.errors?.[0]?.message || data?.error?.message || "Erro na API"}`);
+    }
+    const reply = typeof data?.result?.response === "string" ? data.result.response : "";
+    if (!reply.trim()) throw new Error("O modelo de visão não retornou texto.");
+    return { reply, provider: "Cloudflare Workers AI • Vision", model: "@cf/meta/llama-3.2-11b-vision-instruct" };
+  } catch (error) {
+    if (timeout.signal.aborted) throw new Error("Análise da imagem excedeu 45 segundos.");
+    throw error;
+  } finally {
+    timeout.clear();
+  }
+}
+
 async function askCloudflare(messages: ChatMessage[], persona: string) {
   const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
   const apiToken = process.env.CLOUDFLARE_API_TOKEN;
@@ -399,6 +450,13 @@ export async function POST(req: Request) {
       );
     }
 
+    const uploadedImage =
+      typeof body?.imageUrl === "string" &&
+      body.imageUrl.length <= 3_000_000 &&
+      /^data:image\/(?:jpeg|png|webp);base64,/i.test(body.imageUrl)
+        ? body.imageUrl
+        : undefined;
+
     const messages = getMessages(message, body?.messages);
 
     const persona =
@@ -455,6 +513,21 @@ export async function POST(req: Request) {
         },
         { status: 429 }
       );
+    }
+
+    if (uploadedImage) {
+      try {
+        const result = await askCloudflareVision(messages, persona, uploadedImage);
+        console.info("[ScorpionAI] Análise visual recebida:", result.model);
+        return NextResponse.json(result);
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : "Falha na análise da imagem.";
+        console.error("[ScorpionAI] Falha na análise visual:", error);
+        return NextResponse.json(
+          { reply: `Não foi possível analisar a imagem: ${detail}`, provider: "Cloudflare Workers AI • Vision" },
+          { status: 502 }
+        );
+      }
     }
 
     const previousImageMessage = [...messages.slice(0, -1)]
