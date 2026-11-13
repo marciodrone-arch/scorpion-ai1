@@ -16,8 +16,8 @@ export default function ParticleBackground() {
     let frame = 0;
     let width = 0;
     let height = 0;
+    let motionScale = reducedMotion.matches ? 0.5 : 1;
     let particles: Particle[] = [];
-    let running = !reducedMotion.matches;
 
     const createParticles = () => {
       const area = width * height;
@@ -25,8 +25,9 @@ export default function ParticleBackground() {
       particles = Array.from({ length: count }, () => ({
         x: Math.random() * width,
         y: Math.random() * height,
-        vx: (Math.random() - 0.5) * 0.34,
-        vy: (Math.random() - 0.5) * 0.34,
+        // Gentle, continuous drift; still moves when the OS requests reduced motion.
+        vx: (Math.random() - 0.5) * 0.5,
+        vy: (Math.random() - 0.5) * 0.5,
         radius: Math.random() * 1.35 + 0.85,
         phase: Math.random() * Math.PI * 2,
       }));
@@ -42,22 +43,18 @@ export default function ParticleBackground() {
       canvas.style.height = height + 'px';
       context.setTransform(ratio, 0, 0, ratio, 0, 0);
       createParticles();
-      if (!running) draw();
     };
 
     const draw = () => {
       context.clearRect(0, 0, width, height);
       const time = performance.now() * 0.00035;
 
-      // Subtle luminous points and fine connections, kept behind the interface.
       for (let i = 0; i < particles.length; i += 1) {
         const p = particles[i];
-        if (running) {
-          p.x += p.vx;
-          p.y += p.vy;
-          if (p.x < -8 || p.x > width + 8) p.vx *= -1;
-          if (p.y < -8 || p.y > height + 8) p.vy *= -1;
-        }
+        p.x += p.vx * motionScale;
+        p.y += p.vy * motionScale;
+        if (p.x < -8 || p.x > width + 8) p.vx *= -1;
+        if (p.y < -8 || p.y > height + 8) p.vy *= -1;
 
         for (let j = i + 1; j < particles.length; j += 1) {
           const q = particles[j];
@@ -84,18 +81,16 @@ export default function ParticleBackground() {
         context.fill();
       }
       context.shadowBlur = 0;
-      if (running) frame = window.requestAnimationFrame(draw);
+      frame = window.requestAnimationFrame(draw);
     };
 
     const updateMotion = () => {
-      running = !reducedMotion.matches;
-      window.cancelAnimationFrame(frame);
-      if (running) frame = window.requestAnimationFrame(draw);
-      else draw();
+      // Reduce the drift for accessibility, but do not freeze the background.
+      motionScale = reducedMotion.matches ? 0.5 : 1;
     };
 
     resize();
-    if (running) frame = window.requestAnimationFrame(draw);
+    frame = window.requestAnimationFrame(draw);
     reducedMotion.addEventListener('change', updateMotion);
     window.addEventListener('resize', resize, { passive: true });
 
