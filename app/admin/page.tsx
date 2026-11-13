@@ -157,7 +157,7 @@ export default function AdminPage() {
                         <div title={`Mensagens: ${d.messages}`} className="w-1/3 max-w-5 rounded-t bg-sky-500" style={{height: `${Math.max(2, d.messages / Math.max(1, ...trend.map(x => x.messages)) * 100)}%`}} />
                         <div title={`Cadastros: ${d.signups}`} className="w-1/3 max-w-5 rounded-t bg-emerald-500" style={{height: `${Math.max(2, d.signups / Math.max(1, ...trend.map(x => x.signups)) * 100)}%`}} />
                       </div>
-                      <span className="text-[10px] text-gray-500">{new Date(`${d.day}T12:00:00`).toLocaleDateString("pt-BR", {day:"2-digit",month:"2-digit"})}</span>
+                      <span className="text-[10px] text-gray-500">{new Date(`${String(d.day).slice(0, 10)}T12:00:00`).toLocaleDateString("pt-BR", {day:"2-digit",month:"2-digit"})}</span>
                     </div>)}
                   </div>
                   <div className="flex flex-wrap gap-4 mt-3 text-xs text-gray-400"><span><i className="inline-block w-2 h-2 rounded-full bg-red-500 mr-1"/>Sessões</span><span><i className="inline-block w-2 h-2 rounded-full bg-sky-500 mr-1"/>Mensagens</span><span><i className="inline-block w-2 h-2 rounded-full bg-emerald-500 mr-1"/>Cadastros</span></div>
@@ -167,7 +167,7 @@ export default function AdminPage() {
                   <div className="flex items-end justify-between gap-2 h-44 border-b border-gray-700 px-1">
                     {trend.map((d) => <div key={d.day} className="flex-1 h-full flex flex-col justify-end items-center gap-1 min-w-0">
                       <div className="w-full flex items-end justify-center h-32"><div title={money(d.revenueCents)} className="w-3/5 max-w-8 rounded-t bg-amber-400" style={{height: `${Math.max(2, d.revenueCents / revenueMax * 100)}%`}} /></div>
-                      <span className="text-[10px] text-gray-500">{new Date(`${d.day}T12:00:00`).toLocaleDateString("pt-BR", {day:"2-digit",month:"2-digit"})}</span>
+                      <span className="text-[10px] text-gray-500">{new Date(`${String(d.day).slice(0, 10)}T12:00:00`).toLocaleDateString("pt-BR", {day:"2-digit",month:"2-digit"})}</span>
                     </div>)}
                   </div>
                   <p className="text-xs text-gray-500 mt-3">Os gráficos usam registros reais do banco. Dias sem movimento aparecem zerados.</p>
