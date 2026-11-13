@@ -473,19 +473,31 @@ export async function POST(req: Request) {
         ? body.persona.slice(0, 100)
         : "Geral";
 
+    let isAdmin = false;
     let plan;
     let hourlyLimit;
     let limit;
     let dailyUsage;
 
     try {
-      plan = await getUserPlan(session.user.id);
-      hourlyLimit = plan.hourlyLimit;
-      const userRateKey = createHash("sha256").update(session.user.id).digest("hex");
-      limit = await checkRateLimit(userRateKey, hourlyLimit);
+      // A exceção administrativa é validada no banco usando a sessão autenticada.
+      // Nunca confiar em flags enviadas pelo navegador.
+      const adminResult = await getPool().query(
+        'SELECT role FROM public."user" WHERE id = $1 AND banned = false LIMIT 1',
+        [session.user.id]
+      );
+      isAdmin = adminResult.rows[0]?.role === "admin";
 
-      if (limit.allowed) {
-        dailyUsage = await checkDailyUsage(session.user.id, plan.dailyMessages);
+      // Clientes continuam sujeitos exatamente aos limites atuais de seus planos.
+      if (!isAdmin) {
+        plan = await getUserPlan(session.user.id);
+        hourlyLimit = plan.hourlyLimit;
+        const userRateKey = createHash("sha256").update(session.user.id).digest("hex");
+        limit = await checkRateLimit(userRateKey, hourlyLimit);
+
+        if (limit.allowed) {
+          dailyUsage = await checkDailyUsage(session.user.id, plan.dailyMessages);
+        }
       }
     } catch (error) {
       console.error("[ScorpionAI] Falha no controle de uso:", error);
@@ -499,7 +511,7 @@ export async function POST(req: Request) {
       );
     }
 
-    if (!limit.allowed) {
+    if (!isAdmin && !limit?.allowed) {
       return NextResponse.json(
         {
           reply: `Você atingiu o limite de ${hourlyLimit} solicitações por hora do seu plano. Tente novamente mais tarde.`,
@@ -513,7 +525,7 @@ export async function POST(req: Request) {
       );
     }
 
-    if (!dailyUsage?.allowed) {
+    if (!isAdmin && !dailyUsage?.allowed) {
       return NextResponse.json(
         {
           reply: `Você atingiu o limite diário de ${plan.dailyMessages} mensagens do seu plano. Tente novamente amanhã ou conheça o Premium.`,
