@@ -57,7 +57,7 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-950 flex items-center justify-center p-5">
+    <main className="min-h-screen bg-transparent flex items-center justify-center p-5">
       <div className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-8 shadow-xl">
         <h1 className="text-3xl font-bold text-white text-center">
           ScorpionAI

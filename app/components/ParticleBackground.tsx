@@ -2,13 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 
-type Particle = {
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
-  radius: number;
-};
+type Particle = { x: number; y: number; vx: number; vy: number; radius: number; phase: number };
 
 export default function ParticleBackground() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -19,7 +13,7 @@ export default function ParticleBackground() {
     if (!canvas || !context) return;
 
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
-    let animationFrame = 0;
+    let frame = 0;
     let width = 0;
     let height = 0;
     let particles: Particle[] = [];
@@ -27,13 +21,14 @@ export default function ParticleBackground() {
 
     const createParticles = () => {
       const area = width * height;
-      const count = Math.max(24, Math.min(68, Math.round(area / 24000)));
+      const count = Math.max(55, Math.min(125, Math.round(area / 10500)));
       particles = Array.from({ length: count }, () => ({
         x: Math.random() * width,
         y: Math.random() * height,
-        vx: (Math.random() - 0.5) * 0.22,
-        vy: (Math.random() - 0.5) * 0.22,
-        radius: Math.random() * 1.25 + 0.55,
+        vx: (Math.random() - 0.5) * 0.34,
+        vy: (Math.random() - 0.5) * 0.34,
+        radius: Math.random() * 1.35 + 0.85,
+        phase: Math.random() * Math.PI * 2,
       }));
     };
 
@@ -43,8 +38,8 @@ export default function ParticleBackground() {
       height = window.innerHeight;
       canvas.width = Math.round(width * ratio);
       canvas.height = Math.round(height * ratio);
-      canvas.style.width = `${width}px`;
-      canvas.style.height = `${height}px`;
+      canvas.style.width = width + 'px';
+      canvas.style.height = height + 'px';
       context.setTransform(ratio, 0, 0, ratio, 0, 0);
       createParticles();
       if (!running) draw();
@@ -52,67 +47,80 @@ export default function ParticleBackground() {
 
     const draw = () => {
       context.clearRect(0, 0, width, height);
+      const time = performance.now() * 0.00035;
 
+      // Subtle luminous points and fine connections, kept behind the interface.
       for (let i = 0; i < particles.length; i += 1) {
-        const particle = particles[i];
+        const p = particles[i];
         if (running) {
-          particle.x += particle.vx;
-          particle.y += particle.vy;
-          if (particle.x < -4 || particle.x > width + 4) particle.vx *= -1;
-          if (particle.y < -4 || particle.y > height + 4) particle.vy *= -1;
+          p.x += p.vx;
+          p.y += p.vy;
+          if (p.x < -8 || p.x > width + 8) p.vx *= -1;
+          if (p.y < -8 || p.y > height + 8) p.vy *= -1;
         }
 
         for (let j = i + 1; j < particles.length; j += 1) {
-          const other = particles[j];
-          const dx = particle.x - other.x;
-          const dy = particle.y - other.y;
+          const q = particles[j];
+          const dx = p.x - q.x;
+          const dy = p.y - q.y;
           const distance = Math.sqrt(dx * dx + dy * dy);
-          if (distance < 112) {
+          if (distance < 145) {
+            const alpha = (1 - distance / 145) * 0.22;
             context.beginPath();
-            context.strokeStyle = `rgba(56, 189, 248, ${(1 - distance / 112) * 0.12})`;
-            context.lineWidth = 0.7;
-            context.moveTo(particle.x, particle.y);
-            context.lineTo(other.x, other.y);
+            context.strokeStyle = 'rgba(56, 189, 248, ' + alpha + ')';
+            context.lineWidth = 0.85;
+            context.moveTo(p.x, p.y);
+            context.lineTo(q.x, q.y);
             context.stroke();
           }
         }
 
+        const pulse = 0.78 + Math.sin(time + p.phase) * 0.22;
         context.beginPath();
-        context.fillStyle = 'rgba(103, 232, 249, 0.42)';
-        context.shadowColor = 'rgba(34, 211, 238, 0.45)';
-        context.shadowBlur = 7;
-        context.arc(particle.x, particle.y, particle.radius, 0, Math.PI * 2);
+        context.fillStyle = 'rgba(125, 230, 255, ' + (0.72 * pulse) + ')';
+        context.shadowColor = 'rgba(34, 211, 238, 0.9)';
+        context.shadowBlur = 11;
+        context.arc(p.x, p.y, p.radius * pulse, 0, Math.PI * 2);
         context.fill();
       }
-
       context.shadowBlur = 0;
-      if (running) animationFrame = window.requestAnimationFrame(draw);
+      if (running) frame = window.requestAnimationFrame(draw);
     };
 
-    const handleMotionPreference = () => {
+    const updateMotion = () => {
       running = !reducedMotion.matches;
-      window.cancelAnimationFrame(animationFrame);
-      if (running) animationFrame = window.requestAnimationFrame(draw);
+      window.cancelAnimationFrame(frame);
+      if (running) frame = window.requestAnimationFrame(draw);
       else draw();
     };
 
     resize();
-    if (running) animationFrame = window.requestAnimationFrame(draw);
-    reducedMotion.addEventListener('change', handleMotionPreference);
+    if (running) frame = window.requestAnimationFrame(draw);
+    reducedMotion.addEventListener('change', updateMotion);
     window.addEventListener('resize', resize, { passive: true });
 
     return () => {
-      window.cancelAnimationFrame(animationFrame);
-      reducedMotion.removeEventListener('change', handleMotionPreference);
+      window.cancelAnimationFrame(frame);
+      reducedMotion.removeEventListener('change', updateMotion);
       window.removeEventListener('resize', resize);
     };
   }, []);
 
   return (
-    <canvas
-      ref={canvasRef}
-      aria-hidden="true"
-      className="pointer-events-none fixed inset-0 z-0 opacity-80"
-    />
+    <>
+      <div
+        aria-hidden="true"
+        className="pointer-events-none fixed inset-0 z-0"
+        style={{
+          background:
+            'radial-gradient(ellipse at 18% 24%, rgba(8,145,178,0.13), transparent 42%), radial-gradient(ellipse at 82% 72%, rgba(37,99,235,0.12), transparent 46%)',
+        }}
+      />
+      <canvas
+        ref={canvasRef}
+        aria-hidden="true"
+        className="pointer-events-none fixed inset-0 z-[1] opacity-100"
+      />
+    </>
   );
 }

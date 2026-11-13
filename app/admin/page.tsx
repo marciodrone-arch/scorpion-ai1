@@ -112,7 +112,7 @@ export default function AdminPage() {
   );
 
   return (
-    <main className="min-h-screen bg-[#0a0c10] text-gray-200">
+    <main className="min-h-screen bg-transparent text-gray-200">
       <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6">
         <div className="flex flex-col lg:flex-row gap-6">
           <aside className="lg:w-60 shrink-0">
