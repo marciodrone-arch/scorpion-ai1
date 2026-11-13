@@ -45,7 +45,46 @@ export async function GET(req: Request) {
       `
     );
 
-    return NextResponse.json({ users: result.rows });
+    const statsResult = await getPool().query(
+      `
+      SELECT
+        (SELECT COUNT(*)::int FROM public."user" WHERE banned = false AND role <> 'admin') AS "totalUsers",
+        (SELECT COUNT(*)::int
+          FROM public.subscriptions s
+          JOIN public."user" u ON u.id = s."userId"
+          WHERE u.banned = false AND u.role <> 'admin'
+            AND s."planId" = 'premium' AND s.status = 'active'
+            AND s."currentPeriodEnd" > NOW()) AS "activePremium",
+        (SELECT COUNT(*)::int FROM public.payments WHERE status = 'confirmed_manual') AS "confirmedPayments",
+        (SELECT COALESCE(SUM("amountCents"), 0)::int FROM public.payments WHERE status = 'confirmed_manual') AS "confirmedAmountCents",
+        (SELECT COUNT(*)::int FROM public.payments WHERE status NOT IN ('confirmed_manual', 'failed', 'canceled')) AS "otherPayments"
+      `
+    );
+
+    const paymentsResult = await getPool().query(
+      `
+      SELECT
+        pay.id,
+        pay."amountCents",
+        pay.currency,
+        pay.status,
+        pay."createdAt",
+        u.name AS "userName",
+        u.email AS "userEmail",
+        p.name AS "planName"
+      FROM public.payments pay
+      LEFT JOIN public."user" u ON u.id = pay."userId"
+      LEFT JOIN public.plans p ON p.id = pay."planId"
+      ORDER BY pay."createdAt" DESC
+      LIMIT 10
+      `
+    );
+
+    return NextResponse.json({
+      users: result.rows,
+      stats: statsResult.rows[0],
+      recentPayments: paymentsResult.rows,
+    });
   } catch (error) {
     console.error("[ScorpionAI admin] Erro ao listar usuários:", error);
     return NextResponse.json({ error: "Não foi possível carregar os usuários." }, { status: 500 });
