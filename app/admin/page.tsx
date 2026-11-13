@@ -17,6 +17,7 @@ type AdminUser = {
   subscriptionStatus: string | null; currentPeriodEnd: string | null; planName: string | null;
   planPriceCents: number | null; sessionCount: number; lastAccess: string | null; messages30d: number;
 };
+type AdminTrend = { day: string; signups: number; sessions: number; messages: number; revenueCents: number };
 type AdminPlan = {
   id: string; name: string; description: string | null; priceCents: number;
   dailyMessages: number; maxInputChars: number; maxOutputTokens: number; historyDays: number; active: boolean;
@@ -29,7 +30,7 @@ export default function AdminPage() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [recentPayments, setRecentPayments] = useState<AdminPayment[]>([]);
-  const [plans, setPlans] = useState<AdminPlan[]>([]);
+  const [plans, setPlans] = useState<AdminPlan[]>([]);\n  const [trend, setTrend] = useState<AdminTrend[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState("");
   const [error, setError] = useState("");
@@ -44,7 +45,7 @@ export default function AdminPage() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Não foi possível carregar o painel.");
       setUsers(data.users || []); setStats(data.stats || null);
-      setRecentPayments(data.recentPayments || []); setPlans(data.plans || []);
+      setRecentPayments(data.recentPayments || []); setPlans(data.plans || []); setTrend(data.trend || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao carregar dados.");
     } finally { setLoading(false); }
@@ -96,8 +97,10 @@ export default function AdminPage() {
     finally { setBusyId(""); }
   }
 
+  const chartMax = Math.max(1, ...trend.map((d) => d.sessions));
+  const revenueMax = Math.max(1, ...trend.map((d) => d.revenueCents));
   const nav = [
-    ["visao-geral", "📊 Visão geral"], ["clientes", "👥 Clientes"], ["acessos", "📈 Acessos e uso"],
+    ["visao-geral", "📊 Visão geral"], ["clientes", "👥 Clientes"], ["acessos", "📈 Gráficos e acessos"], ["uso-detalhado", "📊 Indicadores de uso"],
     ["financeiro", "💰 Financeiro"], ["planos", "💳 Planos e preços"],
   ];
   const card = (label: string, value: string | number, detail?: string) => (
@@ -139,6 +142,36 @@ export default function AdminPage() {
                 {card("Receita confirmada", money(stats.confirmedAmountCents), `${stats.confirmedPayments} pagamentos confirmados`)}
                 {card("Visitantes únicos hoje", stats.uniqueVisitorsToday, `${stats.sessionsToday} sessões hoje`)}
               </div>}
+            </section>
+
+            <section id="acessos" className="scroll-mt-5 space-y-3">
+              <h3 className="text-lg font-semibold text-white">📈 Desempenho dos últimos 7 dias</h3>
+              <div className="grid xl:grid-cols-2 gap-3">
+                <article className="rounded-xl border border-gray-800 bg-[#141720] p-4">
+                  <div className="flex items-center justify-between gap-2 mb-4"><h4 className="font-semibold text-white">Atividade diária</h4><span className="text-xs text-gray-500">Sessões · mensagens · cadastros</span></div>
+                  <div className="flex items-end justify-between gap-2 h-44 border-b border-gray-700 px-1">
+                    {trend.map((d) => <div key={d.day} className="flex-1 h-full flex flex-col justify-end items-center gap-1 min-w-0">
+                      <div className="w-full flex items-end justify-center gap-0.5 h-32">
+                        <div title={`Sessões: ${d.sessions}`} className="w-1/3 max-w-5 rounded-t bg-red-500" style={{height: `${Math.max(2, d.sessions / chartMax * 100)}%`}} />
+                        <div title={`Mensagens: ${d.messages}`} className="w-1/3 max-w-5 rounded-t bg-sky-500" style={{height: `${Math.max(2, d.messages / Math.max(1, ...trend.map(x => x.messages)) * 100)}%`}} />
+                        <div title={`Cadastros: ${d.signups}`} className="w-1/3 max-w-5 rounded-t bg-emerald-500" style={{height: `${Math.max(2, d.signups / Math.max(1, ...trend.map(x => x.signups)) * 100)}%`}} />
+                      </div>
+                      <span className="text-[10px] text-gray-500">{new Date(`${d.day}T12:00:00`).toLocaleDateString("pt-BR", {day:"2-digit",month:"2-digit"})}</span>
+                    </div>)}
+                  </div>
+                  <div className="flex flex-wrap gap-4 mt-3 text-xs text-gray-400"><span><i className="inline-block w-2 h-2 rounded-full bg-red-500 mr-1"/>Sessões</span><span><i className="inline-block w-2 h-2 rounded-full bg-sky-500 mr-1"/>Mensagens</span><span><i className="inline-block w-2 h-2 rounded-full bg-emerald-500 mr-1"/>Cadastros</span></div>
+                </article>
+                <article className="rounded-xl border border-gray-800 bg-[#141720] p-4">
+                  <div className="flex items-center justify-between gap-2 mb-4"><h4 className="font-semibold text-white">Receita confirmada por dia</h4><span className="text-xs text-gray-500">Pix confirmado manualmente</span></div>
+                  <div className="flex items-end justify-between gap-2 h-44 border-b border-gray-700 px-1">
+                    {trend.map((d) => <div key={d.day} className="flex-1 h-full flex flex-col justify-end items-center gap-1 min-w-0">
+                      <div className="w-full flex items-end justify-center h-32"><div title={money(d.revenueCents)} className="w-3/5 max-w-8 rounded-t bg-amber-400" style={{height: `${Math.max(2, d.revenueCents / revenueMax * 100)}%`}} /></div>
+                      <span className="text-[10px] text-gray-500">{new Date(`${d.day}T12:00:00`).toLocaleDateString("pt-BR", {day:"2-digit",month:"2-digit"})}</span>
+                    </div>)}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-3">Os gráficos usam registros reais do banco. Dias sem movimento aparecem zerados.</p>
+                </article>
+              </div>
             </section>
 
             <section id="clientes" className="scroll-mt-5 space-y-3">
