@@ -878,7 +878,7 @@ export default function Home() {
                   <div className="mt-3">
                     <img
                       src={msg.imageUrl}
-                      alt="Imagem gerada"
+                      alt={msg.role === 'user' ? 'Imagem enviada' : 'Imagem gerada'}
                       className="rounded-xl max-w-full h-auto border border-gray-700 shadow-lg object-cover max-h-96"
                       loading="lazy"
                     />
