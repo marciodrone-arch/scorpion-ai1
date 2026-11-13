@@ -25,7 +25,7 @@ export default function SupportPage() {
         </section>
 
         <p className="text-sm text-gray-400 border-t border-gray-800 pt-5">
-          ScorpionAI — Os canais oficiais de contato serão divulgados nesta página quando estiverem disponíveis.
+          Atendimento do ScorpionAI: marciodrone@gmail.com. Informe o e-mail cadastrado e descreva o problema. Nunca envie sua senha ou dados completos de cartão.
         </p>
       </article>
     </main>
