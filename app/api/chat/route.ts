@@ -289,15 +289,16 @@ async function askCloudflareVision(messages: ChatMessage[], persona: string, ima
     metaVisionLicenseAccepted = true;
   }
 
+  const conversationText = messages
+    .slice(-10)
+    .map((item) => `${item.role === "user" ? "Usuário" : "ScorpionAI"}: ${item.content}`)
+    .join("\\n");
   const timeout = withTimeout(45000);
   try {
     const response = await fetch(endpoint, {
       method: "POST", headers,
       body: JSON.stringify({
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT + `\\nEspecialidade: ${persona}. Analise a imagem enviada. Se for um print, leia os textos visíveis e explique o que fazer.` },
-          ...messages.map((item) => ({ role: item.role, content: item.content })),
-        ],
+        prompt: `${SYSTEM_PROMPT}\\nEspecialidade: ${persona}. Analise a imagem enviada e responda à pergunta do usuário. Se for um print, leia os textos visíveis e explique o que fazer.\\n\\nHistórico da conversa:\\n${conversationText}`,
         image: imageUrl,
         max_tokens: 1200,
         temperature: 0.4,
