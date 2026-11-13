@@ -636,7 +636,27 @@ export default function Home() {
     }
 
     window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
+
+    // Remove formatação Markdown e símbolos que atrapalham a leitura em voz alta.
+    const speechText = text
+      .replace(/```[\s\S]*?```/g, ' ')
+      .replace(/![([^]]*)]([^)]+)/g, '$1')
+      .replace(/[([^]]+)]([^)]+)/g, '$1')
+      .replace(/https?:\/\/\S+/g, '')
+      .replace(/^s{0,3}#{1,6}s+/gm, '')
+      .replace(/^s*>s?/gm, '')
+      .replace(/^s*[-*+]s+/gm, '')
+      .replace(/^s*\d+[.)]s+/gm, '')
+      .replace(/**|__|[*_~`]/g, '')
+      .replace(/[|<>]/g, ' ')
+      .replace(/&nbsp;/gi, ' ')
+      .replace(/&amp;/gi, 'e')
+      .replace(/&quot;/gi, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    if (!speechText) return;
+    const utterance = new SpeechSynthesisUtterance(speechText);
     utterance.lang = 'pt-BR';
     const chosenVoice = availableVoices.find((voice) => voice.voiceURI === selectedVoiceURI)
       || availableVoices.find((voice) => voice.lang.toLowerCase().startsWith('pt-br'));
