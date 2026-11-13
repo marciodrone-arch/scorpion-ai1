@@ -591,12 +591,17 @@ export default function Home() {
     try {
       const recognition = new SpeechRecognition();
       recognition.lang = 'pt-BR';
-      recognition.continuous = false;
+      // Mantém a sessão aberta para permitir frases mais longas.
+      recognition.continuous = true;
       recognition.interimResults = false;
+      const startingText = input.trim();
       recognition.onresult = (event: any) => {
-        const transcript = event.results?.[0]?.[0]?.transcript?.trim();
+        const transcript = Array.from(event.results || [])
+          .map((result: any) => result?.[0]?.transcript || '')
+          .join(' ')
+          .trim();
         if (transcript) {
-          setInput((current) => current.trim() ? `${current.trim()} ${transcript}` : transcript);
+          setInput(startingText ? `${startingText} ${transcript}` : transcript);
         }
       };
       recognition.onerror = (event: any) => {
