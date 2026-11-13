@@ -46,7 +46,7 @@ export default function TermsPage() {
           <h2 className="text-xl font-semibold text-white">10. Legislação aplicável</h2>
           <p>Estes termos são regidos pelas leis brasileiras, respeitados os direitos do consumidor e de proteção de dados pessoais.</p>
         </section>
-        <p className="text-sm text-gray-400 border-t border-gray-800 pt-5">ScorpionAI — Os dados oficiais do responsável e os canais de contato deverão ser informados antes do lançamento público.</p>
+        <p className="text-sm text-gray-400 border-t border-gray-800 pt-5">ScorpionAI é operado por Marcio Munhoz. Contato para dúvidas sobre estes Termos: marciodrone@gmail.com.</p>
       </article>
     </main>
   );
