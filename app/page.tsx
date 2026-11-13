@@ -164,6 +164,8 @@ export default function Home() {
   const [isListening, setIsListening] = useState(false);
   const [speakingMessageIndex, setSpeakingMessageIndex] = useState<number | null>(null);
   const [autoSpeak, setAutoSpeak] = useState(true);
+  const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [selectedVoiceURI, setSelectedVoiceURI] = useState('');
 
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -180,6 +182,14 @@ export default function Home() {
         window.speechSynthesis.cancel();
       }
     };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    const loadVoices = () => setAvailableVoices(window.speechSynthesis.getVoices());
+    loadVoices();
+    window.speechSynthesis.addEventListener('voiceschanged', loadVoices);
+    return () => window.speechSynthesis.removeEventListener('voiceschanged', loadVoices);
   }, []);
 
   useEffect(() => {
@@ -628,6 +638,9 @@ export default function Home() {
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'pt-BR';
+    const chosenVoice = availableVoices.find((voice) => voice.voiceURI === selectedVoiceURI)
+      || availableVoices.find((voice) => voice.lang.toLowerCase().startsWith('pt-br'));
+    if (chosenVoice) utterance.voice = chosenVoice;
     utterance.rate = 1;
     utterance.pitch = 1;
     utterance.onend = () => setSpeakingMessageIndex(null);
@@ -912,6 +925,21 @@ export default function Home() {
               <span className="bg-red-500/10 text-red-400 text-[10px] px-2 py-0.5 rounded-full border border-red-500/20 font-medium">
                 {persona}
               </span>
+
+              <select
+                value={selectedVoiceURI}
+                onChange={(event) => setSelectedVoiceURI(event.target.value)}
+                aria-label="Escolher voz do ScorpionAI"
+                title="Escolha a voz usada na leitura das respostas"
+                className="text-[10px] max-w-[145px] bg-[#181b24] text-gray-300 border border-gray-700 rounded-full px-2 py-1 focus:outline-none focus:border-red-500"
+              >
+                <option value="">Voz automática</option>
+                {availableVoices.map((voice) => (
+                  <option key={voice.voiceURI} value={voice.voiceURI}>
+                    {voice.name} ({voice.lang})
+                  </option>
+                ))}
+              </select>
 
               <button
                 type="button"
