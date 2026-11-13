@@ -471,7 +471,7 @@ export async function POST(req: Request) {
       .find((item) => item.role === "user" && typeof item.imageUrl === "string")
       ?.imageUrl;
     const isImageFollowUp =
-      /\\b(imagem|foto|figura|visual|nela|nesta|nessa|anterior|enviad[ao]|elementos|aparece|identific|analis|descrev|contexto)\\b/i.test(message);
+      /\b(imagem|foto|figura|visual|nela|nesta|nessa|anterior|enviad[ao]|elementos|aparece|identific|analis|descrev|contexto)\b/i.test(message);
     const imageForVision = uploadedImage || (isImageFollowUp ? previousUserImage : undefined);
 
     const persona =
