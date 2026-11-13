@@ -95,24 +95,63 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   const client = await getPool().connect();
+  let transactionStarted = false;
   try {
     const admin = await requireAdmin(req);
     if (!admin) return NextResponse.json({ error: "Acesso não autorizado." }, { status: 403 });
 
     const body = await req.json();
-    const userId = typeof body?.userId === "string" ? body.userId : "";
     const action = body?.action;
-    if (!userId || !["activate", "cancel"].includes(action)) {
-      return NextResponse.json({ error: "Solicitação inválida." }, { status: 400 });
+
+    if (action === "updatePlan") {
+      const planId = typeof body?.planId === "string" ? body.planId : "";
+      const field = body?.field;
+      const value = body?.value;
+      if (!["free", "premium"].includes(planId) ||
+          !["priceCents", "dailyMessages", "active"].includes(field)) {
+        return NextResponse.json({ error: "Alteração de plano inválida." }, { status: 400 });
+      }
+      if (field === "active" && typeof value !== "boolean") {
+        return NextResponse.json({ error: "Status inválido." }, { status: 400 });
+      }
+      if (field !== "active" && (!Number.isInteger(value) || value < 0 || value > 100000000)) {
+        return NextResponse.json({ error: "Informe um valor numérico válido." }, { status: 400 });
+      }
+      const column = field === "priceCents" ? '"priceCents"' : field === "dailyMessages" ? '"dailyMessages"' : "active";
+      const result = await client.query(
+        `UPDATE public.plans SET ${column} = $1, "updatedAt" = NOW() WHERE id = $2 RETURNING id`,
+        [value, planId]
+      );
+      if (!result.rowCount) return NextResponse.json({ error: "Plano não encontrado." }, { status: 404 });
+      return NextResponse.json({ success: true, message: "Plano atualizado com sucesso." });
     }
 
+    const userId = typeof body?.userId === "string" ? body.userId : "";
+    if (!userId || !["activate", "cancel", "ban", "unban"].includes(action)) {
+      return NextResponse.json({ error: "Solicitação inválida." }, { status: 400 });
+    }
     const target = await client.query(
       'SELECT id FROM public."user" WHERE id = $1 AND role <> \'admin\' LIMIT 1',
       [userId]
     );
     if (!target.rowCount) return NextResponse.json({ error: "Cliente não encontrado." }, { status: 404 });
 
+    if (action === "ban" || action === "unban") {
+      await client.query(
+        'UPDATE public."user" SET banned = $1, "updatedAt" = NOW() WHERE id = $2',
+        [action === "ban", userId]
+      );
+      if (action === "ban") {
+        await client.query('DELETE FROM public.session WHERE "userId" = $1', [userId]);
+      }
+      return NextResponse.json({
+        success: true,
+        message: action === "ban" ? "Cliente bloqueado e sessões encerradas." : "Acesso do cliente desbloqueado."
+      });
+    }
+
     await client.query("BEGIN");
+    transactionStarted = true;
     if (action === "activate") {
       await client.query(`
         INSERT INTO public.subscriptions
@@ -136,6 +175,7 @@ export async function POST(req: Request) {
       `, [userId]);
     }
     await client.query("COMMIT");
+    transactionStarted = false;
     return NextResponse.json({
       success: true,
       message: action === "activate"
@@ -143,9 +183,9 @@ export async function POST(req: Request) {
         : "Assinatura cancelada."
     });
   } catch (error) {
-    await client.query("ROLLBACK").catch(() => undefined);
-    console.error("[ScorpionAI admin] Erro ao atualizar assinatura:", error);
-    return NextResponse.json({ error: "Não foi possível atualizar a assinatura." }, { status: 500 });
+    if (transactionStarted) await client.query("ROLLBACK").catch(() => undefined);
+    console.error("[ScorpionAI admin] Erro ao executar ação administrativa:", error);
+    return NextResponse.json({ error: "Não foi possível concluir a ação administrativa." }, { status: 500 });
   } finally {
     client.release();
   }
