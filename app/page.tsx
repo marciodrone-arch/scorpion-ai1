@@ -639,15 +639,15 @@ export default function Home() {
 
     // Remove formatação Markdown e símbolos que atrapalham a leitura em voz alta.
     const speechText = text
-      .replace(/```[\s\S]*?```/g, ' ')
-      .replace(/![([^]]*)]([^)]+)/g, '$1')
-      .replace(/[([^]]+)]([^)]+)/g, '$1')
+      .replace(/(?:\x60{3})[\s\S]*?(?:\x60{3})/g, ' ')
+      .replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1')
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
       .replace(/https?:\/\/\S+/g, '')
-      .replace(/^s{0,3}#{1,6}s+/gm, '')
-      .replace(/^s*>s?/gm, '')
-      .replace(/^s*[-*+]s+/gm, '')
-      .replace(/^s*\d+[.)]s+/gm, '')
-      .replace(/**|__|[*_~`]/g, '')
+      .replace(/^\s{0,3}#{1,6}\s+/gm, '')
+      .replace(/^\s*>\s?/gm, '')
+      .replace(/^\s*[-*+]\s+/gm, '')
+      .replace(/^\s*\d+[.)]\s+/gm, '')
+      .replace(/\*\*|__|[*_~\x60]/g, '')
       .replace(/[|<>]/g, ' ')
       .replace(/&nbsp;/gi, ' ')
       .replace(/&amp;/gi, 'e')
