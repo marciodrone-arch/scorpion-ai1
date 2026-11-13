@@ -704,7 +704,7 @@ export default function Home() {
     const chosenVoice = availableVoices.find((voice) => voice.voiceURI === selectedVoiceURI)
       || availableVoices.find((voice) => voice.lang.toLowerCase().startsWith('pt-br'));
     if (chosenVoice) utterance.voice = chosenVoice;
-    utterance.rate = 1;
+    utterance.rate = 0.88;
     utterance.pitch = 1;
     utterance.onend = () => setSpeakingMessageIndex(null);
     utterance.onerror = () => setSpeakingMessageIndex(null);
@@ -725,7 +725,7 @@ export default function Home() {
     const chosenVoice = availableVoices.find((voice) => voice.voiceURI === selectedVoiceURI)
       || availableVoices.find((voice) => voice.lang.toLowerCase().startsWith('pt-br'));
     if (chosenVoice) utterance.voice = chosenVoice;
-    utterance.rate = 1;
+    utterance.rate = 0.88;
     utterance.pitch = 1;
     window.speechSynthesis.speak(utterance);
   };
