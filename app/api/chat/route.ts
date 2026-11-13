@@ -21,6 +21,7 @@ Você é o ScorpionAI, um assistente de inteligência artificial avançado.
 
 const FREE_HOURLY_LIMIT = 20;
 const PREMIUM_HOURLY_LIMIT = 60;
+const PRO_HOURLY_LIMIT = 40;
 const WINDOW_MINUTES = 60;
 const MAX_MESSAGE_LENGTH = 4000;
 const MAX_HISTORY_MESSAGES = 20;
@@ -95,16 +96,23 @@ async function getUserPlan(userId: string) {
       ON s."userId" = $1
       AND s.status = 'active'
       AND s."currentPeriodEnd" > NOW()
-    WHERE p.id = CASE WHEN s."planId" = 'premium' THEN 'premium' ELSE 'free' END
+    WHERE p.id = COALESCE(s."planId", 'free')
+      AND p.active = true
     LIMIT 1
     `,
     [userId]
   );
 
   const plan = result.rows[0];
+  const planId = plan?.id || "free";
   return {
-    planId: plan?.id === "premium" ? "premium" : "free",
-    dailyMessages: Number(plan?.dailyMessages || 20),
+    planId,
+    dailyMessages: Number(plan?.dailyMessages ?? 20),
+    hourlyLimit: planId === "premium"
+      ? PREMIUM_HOURLY_LIMIT
+      : planId === "pro"
+        ? PRO_HOURLY_LIMIT
+        : FREE_HOURLY_LIMIT,
   };
 }
 
@@ -472,7 +480,7 @@ export async function POST(req: Request) {
 
     try {
       plan = await getUserPlan(session.user.id);
-      hourlyLimit = plan.planId === "premium" ? PREMIUM_HOURLY_LIMIT : FREE_HOURLY_LIMIT;
+      hourlyLimit = plan.hourlyLimit;
       const userRateKey = createHash("sha256").update(session.user.id).digest("hex");
       limit = await checkRateLimit(userRateKey, hourlyLimit);
 
