@@ -175,9 +175,12 @@ export default function Home() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<any>(null);
+  const shouldContinueRecognitionRef = useRef(false);
+  const recognizedSpeechRef = useRef('');
 
   useEffect(() => {
     return () => {
+      shouldContinueRecognitionRef.current = false;
       try { recognitionRef.current?.stop(); } catch {}
       if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
         window.speechSynthesis.cancel();
@@ -591,40 +594,74 @@ export default function Home() {
     try {
       const recognition = new SpeechRecognition();
       recognition.lang = 'pt-BR';
-      // Mantém a sessão aberta para permitir frases mais longas.
       recognition.continuous = true;
       recognition.interimResults = false;
-      const startingText = input.trim();
+      shouldContinueRecognitionRef.current = true;
+      recognizedSpeechRef.current = input.trim();
+
       recognition.onresult = (event: any) => {
-        const transcript = Array.from(event.results || [])
-          .map((result: any) => result?.[0]?.transcript || '')
-          .join(' ')
-          .trim();
-        if (transcript) {
-          setInput(startingText ? `${startingText} ${transcript}` : transcript);
+        // Acrescenta apenas resultados finais novos, sem repetir frases anteriores.
+        const newParts: string[] = [];
+        for (let index = event.resultIndex ?? 0; index < (event.results?.length ?? 0); index += 1) {
+          const result = event.results[index];
+          if (result?.isFinal && result[0]?.transcript) {
+            newParts.push(result[0].transcript.trim());
+          }
+        }
+
+        if (newParts.length) {
+          const addition = newParts.join(' ').trim();
+          recognizedSpeechRef.current = [recognizedSpeechRef.current, addition]
+            .filter(Boolean)
+            .join(' ')
+            .trim();
+          setInput(recognizedSpeechRef.current);
         }
       };
+
       recognition.onerror = (event: any) => {
+        const errorCode = event.error || 'erro_desconhecido';
+        // "no-speech" é comum durante pausas; o onend tentará continuar.
+        if (errorCode === 'no-speech' || errorCode === 'aborted') return;
+
+        shouldContinueRecognitionRef.current = false;
         setIsListening(false);
-        if (event.error !== 'aborted') {
-          const details = event.error || 'erro_desconhecido';
-          alert(`Falha no reconhecimento de voz. Código do erro: ${details}. Verifique se o Chrome está atualizado e se o microfone está liberado para este site.`);
-          console.error('ScorpionAI SpeechRecognition error:', event.error, event.message || '');
-        }
+        const details = errorCode;
+        alert(`Falha no reconhecimento de voz. Código do erro: ${details}. Verifique a conexão e a permissão do microfone.`);
+        console.error('ScorpionAI SpeechRecognition error:', event.error, event.message || '');
       };
-      recognition.onend = () => setIsListening(false);
+
+      recognition.onend = () => {
+        if (!shouldContinueRecognitionRef.current) {
+          setIsListening(false);
+          return;
+        }
+
+        // Alguns navegadores encerram a sessão após uma pausa. Reinicia enquanto
+        // o usuário não pressionar Parar, mantendo o texto já reconhecido.
+        window.setTimeout(() => {
+          if (!shouldContinueRecognitionRef.current) return;
+          try {
+            recognition.start();
+          } catch (error) {
+            console.warn('ScorpionAI: não foi possível reiniciar o reconhecimento automaticamente.', error);
+          }
+        }, 300);
+      };
+
       recognitionRef.current = recognition;
       recognition.start();
       setIsListening(true);
     } catch (error: any) {
+      shouldContinueRecognitionRef.current = false;
       setIsListening(false);
       const details = error?.name || error?.message || 'erro_desconhecido';
       alert(`Não foi possível iniciar o reconhecimento de voz. Detalhe: ${details}`);
       console.error('ScorpionAI SpeechRecognition start error:', error);
     }
   };
-
   const stopListening = () => {
+    shouldContinueRecognitionRef.current = false;
     try { recognitionRef.current?.stop(); } catch {}
     setIsListening(false);
   };
