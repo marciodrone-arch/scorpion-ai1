@@ -152,6 +152,7 @@ function mapServerConversation(item: any): ChatRecord | null {
 export default function Home() {
   const [messages, setMessages] = useState<Message[]>([initialMessage]);
   const [input, setInput] = useState('');
+  const [pendingImage, setPendingImage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [persona, setPersona] = useState('Geral');
@@ -166,6 +167,7 @@ export default function Home() {
   const [signingOut, setSigningOut] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -384,10 +386,44 @@ export default function Home() {
     }
   };
 
-  const handleSend = async (textToSend?: string) => {
-    const messageText = (textToSend ?? input).trim();
+  const prepareImage = (file: File): Promise<string> => new Promise((resolve, reject) => {
+    if (!file.type.startsWith('image/')) { reject(new Error('Selecione um arquivo de imagem.')); return; }
+    if (file.size > 8 * 1024 * 1024) { reject(new Error('A imagem deve ter até 8 MB.')); return; }
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Não foi possível ler a imagem.'));
+    reader.onload = () => {
+      const source = new Image();
+      source.onerror = () => reject(new Error('Formato de imagem não reconhecido.'));
+      source.onload = () => {
+        const scale = Math.min(1, 1280 / Math.max(source.naturalWidth, source.naturalHeight));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(source.naturalWidth * scale));
+        canvas.height = Math.max(1, Math.round(source.naturalHeight * scale));
+        const context = canvas.getContext('2d');
+        if (!context) { reject(new Error('Não foi possível preparar a imagem.')); return; }
+        context.drawImage(source, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', 0.78));
+      };
+      source.src = String(reader.result);
+    };
+    reader.readAsDataURL(file);
+  });
 
-    if (!messageText || loading) return;
+  const handleImageFile = async (file?: File) => {
+    if (!file) return;
+    try {
+      const image = await prepareImage(file);
+      setPendingImage(image);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Falha ao carregar a imagem.');
+    }
+  };
+
+  const handleSend = async (textToSend?: string, imageToSend?: string) => {
+    const attachedImage = imageToSend ?? pendingImage ?? undefined;
+    const messageText = (textToSend ?? input).trim() || (attachedImage ? 'Analise esta imagem e me explique o que aparece nela.' : '');
+
+    if ((!messageText && !attachedImage) || loading) return;
 
     if (authLoading || !authUser?.id) {
       alert('Entre na sua conta para conversar com o ScorpionAI.');
@@ -400,12 +436,13 @@ export default function Home() {
 
     const newMessages: Message[] = [
       ...messages,
-      { role: 'user', content: messageText },
+      { role: 'user', content: messageText, ...(attachedImage ? { imageUrl: attachedImage } : {}) },
     ];
 
     setMessages(newMessages);
 
     if (textToSend === undefined) setInput('');
+    if (attachedImage) setPendingImage(null);
 
     setLoading(true);
     setCurrentProvider('');
@@ -431,7 +468,7 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: messageText,
-          imageUrl: imageForEdit,
+          imageUrl: attachedImage || imageForEdit,
           messages: newMessages.map((item) => ({
             role: item.role,
             content: item.content,
@@ -889,9 +926,31 @@ export default function Home() {
         </div>
 
         <div className="p-3 sm:p-6 bg-[#0a0c10] border-t border-gray-800/60 shrink-0">
-          <div className="max-w-3xl mx-auto relative flex items-center">
+          <div className="max-w-3xl mx-auto relative">
+            {pendingImage && (
+              <div className="mb-3 inline-flex items-start gap-3 rounded-xl border border-gray-700 bg-[#141720] p-2">
+                <img src={pendingImage} alt="Prévia da imagem anexada" className="h-20 w-20 rounded-lg object-cover" />
+                <div className="flex flex-col gap-2 text-xs text-gray-300">
+                  <span>Imagem pronta para análise</span>
+                  <button type="button" onClick={() => setPendingImage(null)} className="text-left text-red-400 hover:text-red-300">Remover imagem</button>
+                </div>
+              </div>
+            )}
+            <div className="relative flex items-center">
+            <input
+              ref={imageInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif"
+              className="hidden"
+              onChange={(e) => { void handleImageFile(e.target.files?.[0]); e.currentTarget.value = ''; }}
+            />
             <textarea
               value={input}
+              onPaste={(e) => {
+                const imageItem = Array.from(e.clipboardData.items).find((item) => item.type.startsWith('image/'));
+                const file = imageItem?.getAsFile();
+                if (file) { e.preventDefault(); void handleImageFile(file); }
+              }}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
@@ -899,19 +958,31 @@ export default function Home() {
                   handleSend();
                 }
               }}
-              placeholder="Pergunte ao ScorpionAI..."
+              placeholder="Pergunte ou cole uma imagem (Ctrl+V)..."
               rows={1}
-              className="w-full bg-[#141720] text-gray-100 placeholder-gray-500 text-sm rounded-2xl pl-4 pr-24 py-3.5 border border-gray-800 focus:outline-none focus:border-red-500 resize-none shadow-inner transition-all"
+              className="w-full bg-[#141720] text-gray-100 placeholder-gray-500 text-sm rounded-2xl pl-4 pr-36 py-3.5 border border-gray-800 focus:outline-none focus:border-red-500 resize-none shadow-inner transition-all"
             />
 
             <button
+              type="button"
+              onClick={() => imageInputRef.current?.click()}
+              disabled={loading || !authUser}
+              aria-label="Anexar imagem"
+              title="Anexar imagem"
+              className="absolute right-[5.5rem] bg-[#252a36] hover:bg-[#303747] disabled:opacity-50 text-gray-200 px-3 py-2 rounded-xl text-xs font-semibold transition-all"
+            >
+              📎
+            </button>
+
+            <button
               onClick={() => handleSend()}
-              disabled={loading || !input.trim() || !authUser}
+              disabled={loading || (!input.trim() && !pendingImage) || !authUser}
               className="absolute right-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white px-4 py-2 rounded-xl text-xs font-semibold transition-all shadow-md shadow-red-900/20 flex items-center gap-1.5"
             >
               <span>Enviar</span>
               <span>↑</span>
             </button>
+            </div>
           </div>
 
           <div className="text-center mt-2">
