@@ -163,6 +163,7 @@ export default function Home() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [speakingMessageIndex, setSpeakingMessageIndex] = useState<number | null>(null);
+  const [autoSpeak, setAutoSpeak] = useState(true);
 
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -508,6 +509,10 @@ export default function Home() {
 
       setMessages(updatedMessages);
       setCurrentProvider(data.provider || '');
+
+      if (autoSpeak) {
+        speakMessage(assistantMessage.content, updatedMessages.length - 1);
+      }
 
       await persistConversation(chatId, updatedMessages);
     } catch (error) {
@@ -907,6 +912,24 @@ export default function Home() {
               <span className="bg-red-500/10 text-red-400 text-[10px] px-2 py-0.5 rounded-full border border-red-500/20 font-medium">
                 {persona}
               </span>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setAutoSpeak((enabled) => {
+                    if (enabled && typeof window !== 'undefined' && 'speechSynthesis' in window) {
+                      window.speechSynthesis.cancel();
+                      setSpeakingMessageIndex(null);
+                    }
+                    return !enabled;
+                  });
+                }}
+                className={`text-[10px] px-2 py-0.5 rounded-full border font-medium transition-colors ${autoSpeak ? 'bg-green-500/10 text-green-400 border-green-500/20' : 'bg-gray-500/10 text-gray-400 border-gray-500/20'}`}
+                aria-label={autoSpeak ? 'Desativar voz automática' : 'Ativar voz automática'}
+                title={autoSpeak ? 'O ScorpionAI lê automaticamente as respostas. Clique para desativar.' : 'Clique para ativar a leitura automática das respostas.'}
+              >
+                {autoSpeak ? '🔊 Voz automática' : '🔇 Voz automática'}
+              </button>
             </div>
 
             <p className="text-xs text-gray-400 truncate">
