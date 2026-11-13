@@ -177,11 +177,13 @@ export default function Home() {
   const recognitionRef = useRef<any>(null);
   const shouldContinueRecognitionRef = useRef(false);
   const recognizedSpeechRef = useRef('');
+  const speechRunRef = useRef(0);
 
   useEffect(() => {
     return () => {
       shouldContinueRecognitionRef.current = false;
       try { recognitionRef.current?.stop(); } catch {}
+      speechRunRef.current += 1;
       if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
         window.speechSynthesis.cancel();
       }
@@ -499,6 +501,7 @@ export default function Home() {
           messages: newMessages.map((item) => ({
             role: item.role,
             content: item.content,
+            ...(item.imageUrl ? { imageUrl: item.imageUrl } : {}),
           })),
           persona,
         }),
@@ -678,9 +681,12 @@ export default function Home() {
       return;
     }
 
+    // Invalida qualquer leitura anterior antes de iniciar a leitura desta resposta.
+    speechRunRef.current += 1;
+    const speechRun = speechRunRef.current;
     window.speechSynthesis.cancel();
 
-    // Remove formatação Markdown e símbolos que atrapalham a leitura em voz alta.
+    // Remove formatação Markdown sem trocar o conteúdo da resposta.
     const speechText = text
       .replace(/(?:\x60{3})[\s\S]*?(?:\x60{3})/g, ' ')
       .replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1')
@@ -693,7 +699,7 @@ export default function Home() {
       .replace(/\*\*|__|[*_~\x60]/g, '')
       .replace(/[|<>]/g, ' ')
       .replace(/&nbsp;/gi, ' ')
-      .replace(/&amp;/gi, 'e')
+      .replace(/&amp;/gi, ' e ')
       .replace(/&quot;/gi, '')
       .replace(/\s+/g, ' ')
       .trim();
@@ -706,8 +712,12 @@ export default function Home() {
     if (chosenVoice) utterance.voice = chosenVoice;
     utterance.rate = 0.88;
     utterance.pitch = 1;
-    utterance.onend = () => setSpeakingMessageIndex(null);
-    utterance.onerror = () => setSpeakingMessageIndex(null);
+    utterance.onend = () => {
+      if (speechRunRef.current === speechRun) setSpeakingMessageIndex(null);
+    };
+    utterance.onerror = () => {
+      if (speechRunRef.current === speechRun) setSpeakingMessageIndex(null);
+    };
     setSpeakingMessageIndex(index);
     window.speechSynthesis.speak(utterance);
   };
