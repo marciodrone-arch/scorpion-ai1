@@ -3,6 +3,11 @@
 import { useState } from "react";
 
 const PIX_KEY = process.env.NEXT_PUBLIC_PIX_KEY || "";
+const WHATSAPP_NUMBER = "5541997654339";
+const WHATSAPP_MESSAGE = encodeURIComponent(
+  "Olá! Fiz o Pix de R$ 9,90 para contratar 30 dias de Premium no ScorpionAI. Segue o comprovante para conferência."
+);
+const WHATSAPP_URL = `https://wa.me/${WHATSAPP_NUMBER}?text=${WHATSAPP_MESSAGE}`;
 
 export default function PricingPage() {
   const [copyMessage, setCopyMessage] = useState("");
@@ -106,8 +111,16 @@ export default function PricingPage() {
                   </p>
                 )}
                 <p className="text-xs text-amber-300">
-                  Após o Pix, envie o comprovante e aguarde a confirmação manual do recebimento. O Premium será ativado pelo administrador após a confirmação no banco.
+                  Depois de fazer o Pix, clique no botão abaixo para enviar o comprovante. O Premium será ativado pelo administrador somente após a confirmação do recebimento no banco.
                 </p>
+                <a
+                  href={WHATSAPP_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block w-full rounded-lg bg-green-600 p-3 text-center font-semibold text-white hover:bg-green-700"
+                >
+                  Enviar comprovante pelo WhatsApp
+                </a>
               </div>
             ) : (
               <div className="rounded-lg bg-gray-800 p-4 text-center text-sm text-gray-300">
