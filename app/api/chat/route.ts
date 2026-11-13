@@ -275,52 +275,87 @@ async function readResponse(response: Response) {
   }
 }
 
-let metaVisionLicenseAccepted = false;
-
 async function askCloudflareVision(messages: ChatMessage[], persona: string, imageUrl: string) {
   const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
   const apiToken = process.env.CLOUDFLARE_API_TOKEN;
   if (!accountId || !apiToken) throw new Error("Configuração da Cloudflare ausente.");
 
-  const endpoint = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/@cf/meta/llama-3.2-11b-vision-instruct`;
-  const headers = { "Content-Type": "application/json", Authorization: `Bearer ${apiToken}` };
-
-  if (!metaVisionLicenseAccepted) {
-    const licenseResponse = await fetch(endpoint, {
-      method: "POST", headers, body: JSON.stringify({ prompt: "agree" }), cache: "no-store",
-    });
-    const licenseData = await readResponse(licenseResponse);
-    if (!licenseResponse.ok || licenseData?.success === false) {
-      throw new Error(`Aceite da licença Meta não confirmado: ${licenseData?.errors?.[0]?.message || "verifique a conta Cloudflare"}`);
-    }
-    metaVisionLicenseAccepted = true;
+  if (!/^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/i.test(imageUrl)) {
+    throw new Error("A imagem não está em um formato compatível para análise. Reenvie a imagem nesta conversa.");
   }
 
-  const conversationText = messages
-    .slice(-10)
-    .map((item) => `${item.role === "user" ? "Usuário" : "ScorpionAI"}: ${item.content}`)
-    .join("\\n");
-  const timeout = withTimeout(45000);
+  // Modelo multimodal mais recente, com entrada de imagem estruturada.
+  const model = "@cf/meta/llama-4-scout-17b-16e-instruct";
+  const endpoint = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${model}`;
+  const headers = {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${apiToken}`,
+  };
+
+  const visionRules = [
+    "Você analisa imagens com rigor e honestidade.",
+    "Descreva somente elementos que estejam claramente visíveis na imagem fornecida.",
+    "NUNCA invente objetos, pessoas, roupas, cores, textos, ações ou detalhes para completar a cena.",
+    "Não transforme possibilidades em fatos. Se um objeto estiver parcialmente oculto, distante ou pouco nítido, diga que não é possível identificá-lo com segurança.",
+    "Diferencie observação visual de interpretação. Não use o histórico da conversa como prova do que existe na imagem.",
+    "Em perguntas sobre uma imagem anterior, use a imagem anexada nesta mensagem como fonte principal; o histórico serve apenas para entender a pergunta.",
+    "Se não conseguir confirmar um detalhe, admita explicitamente a incerteza em vez de adivinhar.",
+    "Responda em português do Brasil, com objetividade e sem repetir a pergunta."
+  ].join(" ");
+
+  const visionMessages = messages.slice(-10).map((item) => ({
+    role: item.role,
+    content: item.content,
+  }));
+  const lastUserIndex = visionMessages.map((item) => item.role).lastIndexOf("user");
+  if (lastUserIndex < 0) {
+    visionMessages.push({
+      role: "user",
+      content: [
+        { type: "text", text: "Analise a imagem enviada e responda com precisão." },
+        { type: "image_url", image_url: { url: imageUrl } },
+      ] as unknown as string,
+    });
+  } else {
+    const question = visionMessages[lastUserIndex].content;
+    visionMessages[lastUserIndex] = {
+      role: "user",
+      content: [
+        { type: "text", text: question },
+        { type: "image_url", image_url: { url: imageUrl } },
+      ] as unknown as string,
+    };
+  }
+
+  const timeout = withTimeout(50000);
   try {
     const response = await fetch(endpoint, {
-      method: "POST", headers,
+      method: "POST",
+      headers,
       body: JSON.stringify({
-        prompt: `${SYSTEM_PROMPT}\\nEspecialidade: ${persona}. Analise a imagem enviada e responda à pergunta do usuário. Se for um print, leia os textos visíveis e explique o que fazer.\\n\\nHistórico da conversa:\\n${conversationText}`,
-        image: imageUrl,
+        messages: [
+          { role: "system", content: `${SYSTEM_PROMPT}\nEspecialidade: ${persona}.\nREGRAS VISUAIS OBRIGATÓRIAS: ${visionRules}` },
+          ...visionMessages,
+        ],
         max_tokens: 1200,
-        temperature: 0.4,
+        temperature: 0.1,
+        top_p: 0.8,
       }),
-      signal: timeout.signal, cache: "no-store",
+      signal: timeout.signal,
+      cache: "no-store",
     });
     const data = await readResponse(response);
     if (!response.ok || data?.success === false) {
       throw new Error(`Cloudflare Vision HTTP ${response.status}: ${data?.errors?.[0]?.message || data?.error?.message || "Erro na API"}`);
     }
-    const reply = typeof data?.result?.response === "string" ? data.result.response : "";
+    const reply =
+      (typeof data?.result?.response === "string" ? data.result.response : "") ||
+      (typeof data?.choices?.[0]?.message?.content === "string" ? data.choices[0].message.content : "") ||
+      (typeof data?.result?.choices?.[0]?.message?.content === "string" ? data.result.choices[0].message.content : "");
     if (!reply.trim()) throw new Error("O modelo de visão não retornou texto.");
-    return { reply, provider: "Cloudflare Workers AI • Vision", model: "@cf/meta/llama-3.2-11b-vision-instruct" };
+    return { reply, provider: "Cloudflare Workers AI • Vision", model };
   } catch (error) {
-    if (timeout.signal.aborted) throw new Error("Análise da imagem excedeu 45 segundos.");
+    if (timeout.signal.aborted) throw new Error("Análise da imagem excedeu 50 segundos.");
     throw error;
   } finally {
     timeout.clear();
