@@ -30,7 +30,8 @@ export default function AdminPage() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [recentPayments, setRecentPayments] = useState<AdminPayment[]>([]);
-  const [plans, setPlans] = useState<AdminPlan[]>([]);\n  const [trend, setTrend] = useState<AdminTrend[]>([]);
+  const [plans, setPlans] = useState<AdminPlan[]>([]);
+  const [trend, setTrend] = useState<AdminTrend[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState("");
   const [error, setError] = useState("");
@@ -205,8 +206,8 @@ export default function AdminPage() {
               </div>
             </section>
 
-            <section id="acessos" className="scroll-mt-5 space-y-3">
-              <h3 className="text-lg font-semibold text-white">📈 Acessos e utilização</h3>
+            <section id="uso-detalhado" className="scroll-mt-5 space-y-3">
+              <h3 className="text-lg font-semibold text-white">📊 Indicadores de utilização</h3>
               {stats && <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
                 {card("Sessões hoje", stats.sessionsToday)}
                 {card("Clientes únicos hoje", stats.uniqueVisitorsToday)}
