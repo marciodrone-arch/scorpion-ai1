@@ -5,18 +5,45 @@ import { useState } from "react";
 const PIX_KEY = process.env.NEXT_PUBLIC_PIX_KEY || "";
 
 export default function PricingPage() {
-  const [copied, setCopied] = useState(false);
+  const [copyMessage, setCopyMessage] = useState("");
 
   async function copyPixKey() {
-    if (!PIX_KEY) return;
+    if (!PIX_KEY) {
+      setCopyMessage("Chave Pix não configurada.");
+      return;
+    }
 
     try {
-      await navigator.clipboard.writeText(PIX_KEY);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 2000);
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(PIX_KEY);
+      } else {
+        throw new Error("Clipboard API indisponível");
+      }
+      setCopyMessage("Chave Pix copiada!");
     } catch {
-      alert("Não foi possível copiar. Selecione e copie a chave Pix manualmente.");
+      try {
+        const textArea = document.createElement("textarea");
+        textArea.value = PIX_KEY;
+        textArea.setAttribute("readonly", "");
+        textArea.style.position = "fixed";
+        textArea.style.left = "-9999px";
+        document.body.appendChild(textArea);
+        textArea.select();
+        textArea.setSelectionRange(0, textArea.value.length);
+        const copied = document.execCommand("copy");
+        document.body.removeChild(textArea);
+
+        setCopyMessage(
+          copied
+            ? "Chave Pix copiada!"
+            : "Não foi possível copiar automaticamente. Selecione a chave acima e copie."
+        );
+      } catch {
+        setCopyMessage("Não foi possível copiar automaticamente. Selecione a chave acima e copie.");
+      }
     }
+
+    window.setTimeout(() => setCopyMessage(""), 4000);
   }
 
   return (
@@ -70,8 +97,13 @@ export default function PricingPage() {
                   onClick={copyPixKey}
                   className="w-full rounded-lg bg-red-600 p-3 font-semibold text-white hover:bg-red-700"
                 >
-                  {copied ? "Chave Pix copiada!" : "Copiar chave Pix"}
+                  Copiar chave Pix
                 </button>
+                {copyMessage && (
+                  <p role="status" aria-live="polite" className="text-sm font-semibold text-green-400">
+                    {copyMessage}
+                  </p>
+                )}
                 <p className="text-xs text-amber-300">
                   Guarde o comprovante. A confirmação do pagamento e a liberação do Premium serão feitas manualmente.
                 </p>
