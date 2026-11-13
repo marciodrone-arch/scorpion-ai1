@@ -913,6 +913,35 @@ export default function Home() {
             </button>
           </nav>
 
+          {authUser?.email?.toLowerCase() === "marciodrone@gmail.com" && (
+            <nav className="space-y-1 pt-3 border-t border-red-500/30">
+              <div className="text-[11px] font-bold text-red-400 px-2 mb-2 uppercase tracking-wider">
+                Administração
+              </div>
+              <a
+                href="/admin"
+                onClick={() => setIsSidebarOpen(false)}
+                className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-gray-200 hover:bg-red-500/10 transition-colors"
+              >
+                <span>🛠️</span><span>Gerenciar usuários e planos</span>
+              </a>
+              <a
+                href="/pricing"
+                onClick={() => setIsSidebarOpen(false)}
+                className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-gray-200 hover:bg-red-500/10 transition-colors"
+              >
+                <span>💳</span><span>Planos e preços</span>
+              </a>
+              <a
+                href="/support"
+                onClick={() => setIsSidebarOpen(false)}
+                className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-gray-200 hover:bg-red-500/10 transition-colors"
+              >
+                <span>📩</span><span>Suporte</span>
+              </a>
+            </nav>
+          )}
+
           <div className="space-y-1 pt-2 border-t border-gray-800/60 max-h-52 overflow-y-auto">
             <div className="text-[11px] font-bold text-gray-400 px-2 mb-2 uppercase tracking-wider">
               Recentes (Salvos)
