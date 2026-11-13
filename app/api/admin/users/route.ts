@@ -131,11 +131,12 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const client = await getPool().connect();
+  let client: any = null;
   let transactionStarted = false;
   try {
     const admin = await requireAdmin(req);
     if (!admin) return NextResponse.json({ error: "Acesso não autorizado." }, { status: 403 });
+    client = await getPool().connect();
 
     const body = await req.json();
     const action = body?.action;
@@ -144,7 +145,7 @@ export async function POST(req: Request) {
       const planId = typeof body?.planId === "string" ? body.planId : "";
       const field = body?.field;
       const value = body?.value;
-      if (!["free", "premium"].includes(planId) ||
+      if (!["free", "pro", "premium"].includes(planId) ||
           !["priceCents", "dailyMessages", "active"].includes(field)) {
         return NextResponse.json({ error: "Alteração de plano inválida." }, { status: 400 });
       }
@@ -190,6 +191,15 @@ export async function POST(req: Request) {
     await client.query("BEGIN");
     transactionStarted = true;
     if (action === "activate") {
+      const premiumPlan = await client.query(
+        'SELECT "priceCents" FROM public.plans WHERE id = $1 AND active = true LIMIT 1',
+        ["premium"]
+      );
+      if (!premiumPlan.rowCount) {
+        await client.query("ROLLBACK");
+        transactionStarted = false;
+        return NextResponse.json({ error: "O plano Premium está indisponível." }, { status: 409 });
+      }
       await client.query(`
         INSERT INTO public.subscriptions
           ("userId", "planId", status, "currentPeriodEnd", "cancelAtPeriodEnd", "createdAt", "updatedAt")
@@ -224,6 +234,6 @@ export async function POST(req: Request) {
     console.error("[ScorpionAI admin] Erro ao executar ação administrativa:", error);
     return NextResponse.json({ error: "Não foi possível concluir a ação administrativa." }, { status: 500 });
   } finally {
-    client.release();
+    client?.release();
   }
 }
