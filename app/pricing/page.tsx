@@ -69,7 +69,7 @@ export default function PricingPage() {
               <li>✓ Acesso ao chat de IA</li>
               <li>✓ Geração de imagens</li>
               <li>✓ Histórico de conversas</li>
-              <li>✓ Limite de utilização gratuito</li>
+              <li>✓ Até 20 mensagens por dia</li>
             </ul>
             <a href="/" className="block text-center bg-red-600 hover:bg-red-700 text-white rounded-lg p-3">
               Começar agora
@@ -78,19 +78,20 @@ export default function PricingPage() {
 
           <div className="border border-red-500 rounded-xl p-6 space-y-4">
             <h2 className="text-2xl font-bold text-white">Premium</h2>
-            <p className="text-3xl font-bold text-white">R$ 9,90 <span className="text-base font-normal text-gray-400">/ mês</span></p>
-            <p className="text-gray-400">Plano mensal do ScorpionAI.</p>
+            <p className="text-3xl font-bold text-white">R$ 9,90 <span className="text-base font-normal text-gray-400">/ 30 dias</span></p>
+            <p className="text-gray-400">Mais liberdade para usar o ScorpionAI.</p>
             <ul className="space-y-2">
-              <li>✓ Maior limite de utilização</li>
-              <li>✓ Mais gerações de imagens</li>
-              <li>✓ Recursos adicionais</li>
-              <li>✓ Atendimento prioritário</li>
+              <li>✓ Acesso ao chat de IA</li>
+              <li>✓ Geração de imagens</li>
+              <li>✓ Histórico de conversas</li>
+              <li>✓ Até 1.000 mensagens por dia</li>
+              <li>✓ Limite de uso maior que o plano gratuito</li>
             </ul>
 
             {PIX_KEY ? (
               <div className="space-y-3 rounded-lg bg-gray-900 p-4">
-                <p className="font-semibold text-white">Pagamento via Pix (banco Neon)</p>
-                <p className="text-sm text-gray-400">Use a chave Pix abaixo para realizar o pagamento de R$ 9,90.</p>
+                <p className="font-semibold text-white">Pagamento via Pix</p>
+                <p className="text-sm text-gray-400">Faça um Pix de R$ 9,90 usando a chave abaixo para contratar 30 dias de Premium.</p>
                 <div className="break-all rounded bg-black/40 p-3 text-sm text-white">{PIX_KEY}</div>
                 <button
                   type="button"
@@ -105,7 +106,7 @@ export default function PricingPage() {
                   </p>
                 )}
                 <p className="text-xs text-amber-300">
-                  Guarde o comprovante. A confirmação do pagamento e a liberação do Premium serão feitas manualmente.
+                  Após o Pix, envie o comprovante e aguarde a confirmação manual do recebimento. O Premium será ativado pelo administrador após a confirmação no banco.
                 </p>
               </div>
             ) : (
@@ -117,7 +118,7 @@ export default function PricingPage() {
         </section>
 
         <p className="text-center text-sm text-gray-500">
-          O pagamento do Premium é mensal. A liberação do acesso ocorre somente após a confirmação do recebimento.
+          O Premium libera 30 dias de acesso após a confirmação manual do Pix. Não há renovação automática: para continuar usando o Premium após esse período, será necessário realizar um novo pagamento e aguardar a confirmação.
         </p>
       </article>
     </main>
