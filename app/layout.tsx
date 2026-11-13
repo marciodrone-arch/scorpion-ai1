@@ -1,6 +1,7 @@
 
 import type { Metadata } from 'next';
 import './globals.css';
+import ParticleBackground from './components/ParticleBackground';
 
 export const metadata: Metadata = {
   title: 'ScorpionAI - Inteligência Artificial Comercial',
@@ -18,7 +19,8 @@ export default function RootLayout({
   return (
     <html lang="pt-BR">
       <body className="bg-slate-950 text-slate-100 antialiased font-sans">
-        {children}
+        <ParticleBackground />
+        <div className="relative z-10 min-h-screen">{children}</div>
       </body>
     </html>
   );
