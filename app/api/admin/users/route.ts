@@ -121,7 +121,8 @@ export async function GET(req: Request) {
       users: usersResult.rows,
       stats: statsResult.rows[0],
       recentPayments: paymentsResult.rows,
-      plans: plansResult.rows,\n      trend: trendResult.rows,
+      plans: plansResult.rows,
+      trend: trendResult.rows,
     });
   } catch (error) {
     console.error("[ScorpionAI admin] Erro ao carregar painel:", error);
