@@ -2,6 +2,25 @@
 
 import { useEffect, useState } from "react";
 
+type AdminStats = {
+  totalUsers: number;
+  activePremium: number;
+  confirmedPayments: number;
+  confirmedAmountCents: number;
+  otherPayments: number;
+};
+
+type AdminPayment = {
+  id: string;
+  amountCents: number;
+  currency: string;
+  status: string;
+  createdAt: string;
+  userName: string | null;
+  userEmail: string | null;
+  planName: string | null;
+};
+
 type AdminUser = {
   id: string;
   name: string;
@@ -14,6 +33,8 @@ type AdminUser = {
 
 export default function AdminPage() {
   const [users, setUsers] = useState<AdminUser[]>([]);
+  const [stats, setStats] = useState<AdminStats | null>(null);
+  const [recentPayments, setRecentPayments] = useState<AdminPayment[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState("");
   const [error, setError] = useState("");
@@ -27,6 +48,8 @@ export default function AdminPage() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Não foi possível carregar.");
       setUsers(data.users || []);
+      setStats(data.stats || null);
+      setRecentPayments(data.recentPayments || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao carregar usuários.");
     } finally {
@@ -74,6 +97,55 @@ export default function AdminPage() {
           </div>
           <button onClick={loadUsers} className="rounded-lg border border-gray-700 px-4 py-2 hover:bg-gray-800">Atualizar lista</button>
         </header>
+
+        {stats && (
+          <section className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            {[
+              ["Usuários", stats.totalUsers],
+              ["Premium ativo", stats.activePremium],
+              ["Pagamentos confirmados", stats.confirmedPayments],
+              ["Total confirmado", (stats.confirmedAmountCents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })],
+            ].map(([label, value]) => (
+              <article key={String(label)} className="rounded-xl border border-gray-800 bg-[#141720] p-4">
+                <p className="text-xs text-gray-400">{label}</p>
+                <p className="mt-2 text-2xl font-bold text-white">{value}</p>
+              </article>
+            ))}
+          </section>
+        )}
+
+        {stats && stats.otherPayments > 0 && (
+          <p className="text-xs text-gray-400">
+            Existem {stats.otherPayments} pagamento(s) com status diferente de confirmado, cancelado ou falhou.
+          </p>
+        )}
+
+        <section className="rounded-xl border border-gray-800 bg-[#141720] p-4 space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-lg font-semibold text-white">Pagamentos recentes</h2>
+            <span className="text-xs text-gray-500">Últimos 10 registros</span>
+          </div>
+          {recentPayments.length === 0 ? (
+            <p className="text-sm text-gray-400">Nenhum pagamento registrado ainda.</p>
+          ) : (
+            <div className="space-y-2">
+              {recentPayments.map((payment) => (
+                <div key={payment.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 border-t border-gray-800 pt-3 text-sm">
+                  <div className="min-w-0">
+                    <p className="text-white break-words">{payment.userName || "Usuário"} · {payment.userEmail || "sem e-mail"}</p>
+                    <p className="text-xs text-gray-500">{payment.planName || "Plano"} · {new Date(payment.createdAt).toLocaleString("pt-BR")}</p>
+                  </div>
+                  <div className="sm:text-right">
+                    <p className="font-semibold text-white">{(payment.amountCents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</p>
+                    <p className={payment.status === "confirmed_manual" ? "text-xs text-emerald-400" : "text-xs text-amber-300"}>
+                      {payment.status === "confirmed_manual" ? "Confirmado manualmente" : payment.status}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
 
         <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">
           A ativação é manual. Só clique em “Ativar 30 dias” depois de confirmar o recebimento de R$ 9,90 no banco.
