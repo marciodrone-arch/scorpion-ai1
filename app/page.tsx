@@ -161,6 +161,8 @@ export default function Home() {
   const [activeChatId, setActiveChatId] = useState('');
   const [currentProvider, setCurrentProvider] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [speakingMessageIndex, setSpeakingMessageIndex] = useState<number | null>(null);
 
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -168,6 +170,16 @@ export default function Home() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const recognitionRef = useRef<any>(null);
+
+  useEffect(() => {
+    return () => {
+      try { recognitionRef.current?.stop(); } catch {}
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -550,6 +562,71 @@ export default function Home() {
     }
   };
 
+  const startListening = () => {
+    if (typeof window === 'undefined') return;
+    const browserWindow = window as any;
+    const SpeechRecognition = browserWindow.SpeechRecognition || browserWindow.webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      alert('O reconhecimento de voz não está disponível neste navegador. Use a versão mais recente do Google Chrome.');
+      return;
+    }
+
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.lang = 'pt-BR';
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      recognition.onresult = (event: any) => {
+        const transcript = event.results?.[0]?.[0]?.transcript?.trim();
+        if (transcript) {
+          setInput((current) => current.trim() ? `${current.trim()} ${transcript}` : transcript);
+        }
+      };
+      recognition.onerror = (event: any) => {
+        setIsListening(false);
+        if (event.error !== 'aborted') {
+          alert('Não foi possível reconhecer sua voz. Confira a permissão do microfone e tente novamente.');
+        }
+      };
+      recognition.onend = () => setIsListening(false);
+      recognitionRef.current = recognition;
+      recognition.start();
+      setIsListening(true);
+    } catch (error) {
+      setIsListening(false);
+      alert('Não foi possível iniciar o microfone. Verifique a permissão do navegador.');
+    }
+  };
+
+  const stopListening = () => {
+    try { recognitionRef.current?.stop(); } catch {}
+    setIsListening(false);
+  };
+
+  const speakMessage = (text: string, index: number) => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+      alert('A leitura em voz alta não está disponível neste navegador.');
+      return;
+    }
+
+    if (speakingMessageIndex === index) {
+      window.speechSynthesis.cancel();
+      setSpeakingMessageIndex(null);
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'pt-BR';
+    utterance.rate = 1;
+    utterance.pitch = 1;
+    utterance.onend = () => setSpeakingMessageIndex(null);
+    utterance.onerror = () => setSpeakingMessageIndex(null);
+    setSpeakingMessageIndex(index);
+    window.speechSynthesis.speak(utterance);
+  };
+
   const handleSignOut = async () => {
     if (signingOut || !authUser?.id) return;
 
@@ -891,12 +968,23 @@ export default function Home() {
                       {msg.provider || ''}
                     </span>
 
-                    <button
-                      onClick={() => copyToClipboard(msg.content, index)}
-                      className="text-[11px] text-gray-400 hover:text-white transition-colors flex items-center gap-1 bg-gray-900/40 px-2 py-1 rounded-md shrink-0"
-                    >
-                      {copiedIndex === index ? '✅ Copiado!' : '📋 Copiar'}
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => speakMessage(msg.content, index)}
+                        className="text-[11px] text-gray-400 hover:text-white transition-colors flex items-center gap-1 bg-gray-900/40 px-2 py-1 rounded-md shrink-0"
+                        aria-label={speakingMessageIndex === index ? 'Parar áudio' : 'Ouvir resposta'}
+                        title={speakingMessageIndex === index ? 'Parar áudio' : 'Ouvir resposta'}
+                      >
+                        {speakingMessageIndex === index ? '⏹ Parar' : '🔊 Ouvir'}
+                      </button>
+                      <button
+                        onClick={() => copyToClipboard(msg.content, index)}
+                        className="text-[11px] text-gray-400 hover:text-white transition-colors flex items-center gap-1 bg-gray-900/40 px-2 py-1 rounded-md shrink-0"
+                      >
+                        {copiedIndex === index ? '✅ Copiado!' : '📋 Copiar'}
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -960,8 +1048,19 @@ export default function Home() {
               }}
               placeholder="Pergunte ou cole uma imagem (Ctrl+V)..."
               rows={1}
-              className="w-full bg-[#141720] text-gray-100 placeholder-gray-500 text-sm rounded-2xl pl-4 pr-36 py-3.5 border border-gray-800 focus:outline-none focus:border-red-500 resize-none shadow-inner transition-all"
+              className="w-full bg-[#141720] text-gray-100 placeholder-gray-500 text-sm rounded-2xl pl-4 pr-48 py-3.5 border border-gray-800 focus:outline-none focus:border-red-500 resize-none shadow-inner transition-all"
             />
+
+            <button
+              type="button"
+              onClick={isListening ? stopListening : startListening}
+              disabled={loading || !authUser}
+              aria-label={isListening ? 'Parar gravação' : 'Falar com ScorpionAI'}
+              title={isListening ? 'Parar gravação' : 'Falar com ScorpionAI'}
+              className={`absolute right-[9.5rem] ${isListening ? 'bg-red-700 animate-pulse' : 'bg-[#252a36] hover:bg-[#303747]'} disabled:opacity-50 text-gray-200 px-3 py-2 rounded-xl text-xs font-semibold transition-all`}
+            >
+              {isListening ? '⏹' : '🎙️'}
+            </button>
 
             <button
               type="button"
