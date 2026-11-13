@@ -802,7 +802,7 @@ export default function Home() {
   };
 
   return (
-    <div className="flex h-screen h-[100dvh] bg-[#0a0c10] text-gray-100 font-sans overflow-hidden">
+    <div className="flex h-screen h-[100dvh] bg-transparent text-gray-100 font-sans overflow-hidden">
 
       {isSidebarOpen && (
         <button
@@ -1009,7 +1009,7 @@ export default function Home() {
         </div>
       </aside>
 
-      <main className="flex-1 flex flex-col bg-[#0a0c10] relative min-w-0 min-h-0">
+      <main className="flex-1 flex flex-col bg-transparent relative min-w-0 min-h-0">
 
         <header className="min-h-16 border-b border-gray-800/60 flex items-center gap-3 px-3 sm:px-6 py-3 bg-[#0a0c10]/80 backdrop-blur-md z-10 shrink-0">
           <button
