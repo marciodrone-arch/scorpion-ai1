@@ -87,7 +87,7 @@ export default function PricingPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#0a0c10] text-gray-200 px-6 py-12">
+    <main className="min-h-screen bg-transparent text-gray-200 px-6 py-12">
       <article className="max-w-4xl mx-auto space-y-8">
         <a href="/" className="text-red-400">← Voltar ao ScorpionAI</a>
         <header className="text-center space-y-3">
