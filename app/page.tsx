@@ -955,6 +955,13 @@ export default function Home() {
             >
               <span>✍️</span><span>Criar anúncios</span>
             </button>
+            <a
+              href="/videos"
+              onClick={() => setIsSidebarOpen(false)}
+              className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-gray-300 hover:bg-[#181b24] transition-colors text-left"
+            >
+              <span>🎬</span><span>Gerar vídeos</span>
+            </a>
           </nav>
 
           {authUser?.email?.toLowerCase() === "marciodrone@gmail.com" && (
