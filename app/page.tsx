@@ -1235,7 +1235,7 @@ export default function Home() {
                 </div>
               </div>
             )}
-            <div className="relative flex items-center">
+            <div className="relative">
             <input
               ref={imageInputRef}
               type="file"
@@ -1258,8 +1258,8 @@ export default function Home() {
                 }
               }}
               placeholder="Pergunte ou cole uma imagem (Ctrl+V)..."
-              rows={1}
-              className="w-full bg-[#141720] text-gray-100 placeholder-gray-500 text-sm rounded-2xl pl-4 pr-60 py-3.5 border border-gray-800 focus:outline-none focus:border-red-500 resize-none shadow-inner transition-all"
+              rows={3}
+              className="w-full min-h-[112px] max-h-60 overflow-y-auto bg-[#141720] text-gray-100 placeholder-gray-500 text-sm rounded-2xl pl-4 pr-4 pt-3.5 pb-14 border border-gray-800 focus:outline-none focus:border-red-500 resize-none shadow-inner transition-all"
             />
 
             <button
@@ -1268,7 +1268,7 @@ export default function Home() {
               disabled={loading || !authUser}
               aria-label={isListening ? 'Parar gravação' : 'Falar com ScorpionAI'}
               title={isListening ? 'Parar gravação' : 'Falar com ScorpionAI'}
-              className={`absolute right-[9.5rem] ${isListening ? 'bg-red-700 animate-pulse' : 'bg-[#252a36] hover:bg-[#303747]'} disabled:opacity-50 text-gray-200 px-3 py-2 rounded-xl text-xs font-semibold transition-all`}
+              className={`absolute right-[9.5rem] bottom-3 ${isListening ? 'bg-red-700 animate-pulse' : 'bg-[#252a36] hover:bg-[#303747]'} disabled:opacity-50 text-gray-200 px-3 py-2 rounded-xl text-xs font-semibold transition-all`}
             >
               {isListening ? '⏹' : '🎙️'}
             </button>
@@ -1279,7 +1279,7 @@ export default function Home() {
               disabled={loading || !authUser}
               aria-label="Anexar imagem"
               title="Anexar imagem"
-              className="absolute right-[5.5rem] bg-[#252a36] hover:bg-[#303747] disabled:opacity-50 text-gray-200 px-3 py-2 rounded-xl text-xs font-semibold transition-all"
+              className="absolute right-[5.5rem] bottom-3 bg-[#252a36] hover:bg-[#303747] disabled:opacity-50 text-gray-200 px-3 py-2 rounded-xl text-xs font-semibold transition-all"
             >
               📎
             </button>
@@ -1287,7 +1287,7 @@ export default function Home() {
             <button
               onClick={() => handleSend()}
               disabled={loading || (!input.trim() && !pendingImage) || !authUser}
-              className="absolute right-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white px-4 py-2 rounded-xl text-xs font-semibold transition-all shadow-md shadow-red-900/20 flex items-center gap-1.5"
+              className="absolute right-2 bottom-3 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white px-4 py-2 rounded-xl text-xs font-semibold transition-all shadow-md shadow-red-900/20 flex items-center gap-1.5"
             >
               <span>Enviar</span>
               <span>↑</span>
