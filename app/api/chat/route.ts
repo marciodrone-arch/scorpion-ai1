@@ -269,6 +269,12 @@ function isImageRequest(message: string): boolean {
 
   if (explicitImageRequest) return true;
 
+  // Pedidos de configuração do atendimento empresarial não são pedidos de imagem.
+  const businessSupportRequest =
+    /\\b(atendimento empresarial|configurar meu atendimento|responder clientes|mensagens comerciais|elaborar orçamentos|preparar mensagens comerciais)\\b/i.test(message);
+
+  if (businessSupportRequest) return false;
+
   const textRequest =
     /\b(texto|história|historinha|resumo|redação|artigo|poema|poesia|roteiro|e-mail|email|mensagem|relatório|explicação|tradução|código|programa|lista|plano|receita escrita|essay|story|summary|article|poem|email|report|explanation|translation|code|program|recipe)\b/i.test(message);
 
