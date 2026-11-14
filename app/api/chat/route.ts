@@ -271,7 +271,7 @@ function isImageRequest(message: string): boolean {
 
   // Pedidos de configuração do atendimento empresarial não são pedidos de imagem.
   const businessSupportRequest =
-    /\\b(atendimento empresarial|configurar meu atendimento|responder clientes|mensagens comerciais|elaborar orçamentos|preparar mensagens comerciais)\\b/i.test(message);
+    /\b(atendimento empresarial|configurar meu atendimento|responder clientes|mensagens comerciais|elaborar orçamentos|preparar mensagens comerciais)\b/i.test(message);
 
   if (businessSupportRequest) return false;
 
