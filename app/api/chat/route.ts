@@ -189,11 +189,11 @@ function getMessages(message: unknown, history: unknown): ChatMessage[] {
 function buildMapsReply(message: string): string | null {
   const text = message.trim();
   const asksForRoute =
-    /\\b(rota|rotas|como chegar|me leve|me leva|navegar|navegacao|direcoes|trajeto|caminho|ir para|vou para|saindo de|partindo de)\\b/i.test(text);
+    /\b(rota|rotas|como chegar|me leve|me leva|navegar|navegacao|direcoes|trajeto|caminho|ir para|vou para|saindo de|partindo de)\b/i.test(text);
 
   const routePair =
-    text.match(/\\b(?:saindo de|partindo de|de)\\s+(.+?)\\s+(?:para|ate|até)\\s+(.+?)(?:[.!?]|$)/i) ||
-    text.match(/\\borigem\\s*[:=]?\\s*(.+?)\\s+destino\\s*[:=]?\\s*(.+?)(?:[.!?]|$)/i);
+    text.match(/\b(?:saindo de|partindo de|de)\s+(.+?)\s+(?:para|ate|até)\s+(.+?)(?:[.!?]|$)/i) ||
+    text.match(/\borigem\s*[:=]?\s*(.+?)\s+destino\s*[:=]?\s*(.+?)(?:[.!?]|$)/i);
 
   if (asksForRoute) {
     if (routePair && routePair[1].trim() && routePair[2].trim()) {
@@ -211,7 +211,7 @@ function buildMapsReply(message: string): string | null {
     }
 
     const destinationMatch =
-      text.match(/\\b(?:para|ate|até|em|no|na)\\s+(.+?)(?:[.!?]|$)/i);
+      text.match(/\b(?:para|ate|até|em|no|na)\s+(.+?)(?:[.!?]|$)/i);
     if (destinationMatch && destinationMatch[1].trim()) {
       const destination = destinationMatch[1].trim().replace(/[.!?]+$/, "");
       const url = "https://www.google.com/maps/dir/?api=1"
@@ -227,12 +227,12 @@ function buildMapsReply(message: string): string | null {
   }
 
   const asksLocation =
-    /\\b(mapa|maps|endereco|endereço|localizar|localize|localizacao|localização|onde fica|onde esta|onde está|procurar|pesquisar)\\b/i.test(text);
+    /\b(mapa|maps|endereco|endereço|localizar|localize|localizacao|localização|onde fica|onde esta|onde está|procurar|pesquisar)\b/i.test(text);
 
   if (!asksLocation) return null;
 
   const address = text
-    .replace(/^.*?\\b(?:endereco|endereço|localize|localizar|onde fica|onde esta|onde está|pesquise|pesquisar|procurar|mapa|maps)\\b\\s*(?:de|do|da|o|a)?\\s*/i, "")
+    .replace(/^.*?\b(?:endereco|endereço|localize|localizar|onde fica|onde esta|onde está|pesquise|pesquisar|procurar|mapa|maps)\b\s*(?:de|do|da|o|a)?\s*/i, "")
     .trim()
     .replace(/[.!?]+$/, "");
 
@@ -246,7 +246,8 @@ function buildMapsReply(message: string): string | null {
     + "[Pesquisar no Google Maps](" + url + ")\n\n"
     + "A pesquisa abre no Google Maps. Isso ainda não confirma que o endereço está correto; confira o resultado, o bairro e a cidade antes de usar.";
 }
-\nfunction isImageRequest(message: string): boolean {
+
+function isImageRequest(message: string): boolean {
   const explicitImageRequest =
     /\b(gerar|gere|crie|criar|desenhe|desenhar|faça|fazer|produza|produzir|generate|create|draw|make|produce)\s+(an?\s+|uma?\s+)?(imagem|image|picture|foto|photo|ilustração|illustration|desenho|drawing|arte|art)\b/i.test(message) ||
     /\b(imagem|image|picture|foto|photo|ilustração|illustration|desenho|drawing)\s+(de|do|da|of)\b/i.test(message);
