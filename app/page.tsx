@@ -651,16 +651,16 @@ export default function Home() {
         .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
     const formatInline = (value: string) =>
-      escapeHtml(value).replace(/\\*\\*(.+?)\\*\\*/g, '<strong>$1</strong>');
+      escapeHtml(value).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
 
-    const body = content.split('\\n').map((line) => {
+    const body = content.split('\n').map((line) => {
       const trimmed = line.trim();
       if (!trimmed) return '<div class="space"></div>';
       if (trimmed.startsWith('### ')) return '<h3>' + formatInline(trimmed.slice(4)) + '</h3>';
       if (trimmed.startsWith('## ')) return '<h2>' + formatInline(trimmed.slice(3)) + '</h2>';
       if (trimmed.startsWith('# ')) return '<h1>' + formatInline(trimmed.slice(2)) + '</h1>';
-      if (/^[-*]\\s+/.test(trimmed)) return '<p class="list">• ' + formatInline(trimmed.replace(/^[-*]\\s+/, '')) + '</p>';
-      if (/^\\d+[.)]\\s+/.test(trimmed)) return '<p class="list">' + formatInline(trimmed) + '</p>';
+      if (/^[-*]\s+/.test(trimmed)) return '<p class="list">• ' + formatInline(trimmed.replace(/^[-*]\s+/, '')) + '</p>';
+      if (/^\d+[.)]\s+/.test(trimmed)) return '<p class="list">' + formatInline(trimmed) + '</p>';
       return '<p>' + formatInline(trimmed) + '</p>';
     }).join('');
 
