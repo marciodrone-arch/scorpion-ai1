@@ -208,6 +208,7 @@ export default function Home() {
   const [messages, setMessages] = useState<Message[]>([initialMessage]);
   const [input, setInput] = useState('');
   const [pendingImage, setPendingImage] = useState<string | null>(null);
+  const [spreadsheetLoading, setSpreadsheetLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [persona, setPersona] = useState('Geral');
@@ -228,6 +229,7 @@ export default function Home() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const spreadsheetInputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<any>(null);
   const shouldContinueRecognitionRef = useRef(false);
   const recognizedSpeechRef = useRef('');
@@ -499,6 +501,52 @@ export default function Home() {
       setPendingImage(image);
     } catch (error) {
       alert(error instanceof Error ? error.message : 'Falha ao carregar a imagem.');
+    }
+  };
+
+  const handleSpreadsheetFile = async (file?: File) => {
+    if (!file || loading || spreadsheetLoading) return;
+    const extension = file.name.toLowerCase().split('.').pop();
+    if (!['csv', 'xlsx'].includes(extension || '')) {
+      alert('Formato não aceito. Envie uma planilha CSV ou Excel (.xlsx).');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      alert('A planilha deve ter no máximo 5 MB.');
+      return;
+    }
+    if (!authUser?.id) {
+      alert('Entre na sua conta para analisar uma planilha.');
+      return;
+    }
+    setSpreadsheetLoading(true);
+    setLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const response = await fetch('/api/spreadsheet', {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Não foi possível analisar a planilha.');
+      const report = data.report as string;
+      const chatId = activeChatId || Date.now().toString();
+      if (!activeChatId) setActiveChatId(chatId);
+      const updatedMessages: Message[] = [
+        ...messages,
+        { role: 'user', content: 'Analisar planilha: ' + file.name },
+        { role: 'assistant', content: report, provider: 'Análise de planilhas • ScorpionAI' },
+      ];
+      setMessages(updatedMessages);
+      setCurrentProvider('Análise de planilhas • ScorpionAI');
+      await persistConversation(chatId, updatedMessages);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Falha ao analisar a planilha.');
+    } finally {
+      setSpreadsheetLoading(false);
+      setLoading(false);
     }
   };
 
@@ -1341,6 +1389,13 @@ export default function Home() {
               className="hidden"
               onChange={(e) => { void handleImageFile(e.target.files?.[0]); e.currentTarget.value = ''; }}
             />
+            <input
+              ref={spreadsheetInputRef}
+              type="file"
+              accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              className="hidden"
+              onChange={(e) => { void handleSpreadsheetFile(e.target.files?.[0]); e.currentTarget.value = ''; }}
+            />
             <textarea
               value={input}
               onPaste={(e) => {
@@ -1380,6 +1435,16 @@ export default function Home() {
               className="absolute right-[5.5rem] bottom-3 bg-[#252a36] hover:bg-[#303747] disabled:opacity-50 text-gray-200 px-3 py-2 rounded-xl text-xs font-semibold transition-all"
             >
               📎
+            </button>
+            <button
+              type="button"
+              onClick={() => spreadsheetInputRef.current?.click()}
+              disabled={loading || !authUser}
+              aria-label="Analisar planilha CSV ou Excel"
+              title="Analisar planilha CSV ou Excel"
+              className="absolute right-[2.9rem] bottom-3 bg-[#252a36] hover:bg-[#303747] disabled:opacity-50 text-gray-200 px-3 py-2 rounded-xl text-xs font-semibold transition-all"
+            >
+              📊
             </button>
 
             <button
