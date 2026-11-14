@@ -482,7 +482,7 @@ export default function Home() {
     }
   };
 
-  const handleSend = async (textToSend?: string, imageToSend?: string) => {
+  const handleSend = async (textToSend?: string, imageToSend?: string, personaOverride?: string) => {
     const attachedImage = imageToSend ?? pendingImage ?? undefined;
     const messageText = (textToSend ?? input).trim() || (attachedImage ? 'Analise esta imagem e me explique o que aparece nela.' : '');
 
@@ -537,7 +537,7 @@ export default function Home() {
             content: item.content,
             ...(item.imageUrl ? { imageUrl: item.imageUrl } : {}),
           })),
-          persona,
+          persona: personaOverride ?? persona,
         }),
       });
 
@@ -905,6 +905,9 @@ export default function Home() {
               <option value="QA Tester & Auditor">
                 🔍 Engenheiro de QA & Testes
               </option>
+              <option value="Atendimento Empresarial">
+                Atendimento Empresarial
+              </option>
             </select>
           </div>
 
@@ -937,7 +940,12 @@ export default function Home() {
             <button
               onClick={() => {
                 setIsSidebarOpen(false);
-                handleSend('Me ajude a estruturar uma estratégia comercial forte');
+                setPersona('Atendimento Empresarial');
+                handleSend(
+                  'Quero configurar meu atendimento empresarial. Faça uma pergunta por vez para conhecer meu negócio e, depois, me ajude a responder clientes, apresentar produtos e serviços, preparar mensagens comerciais e elaborar orçamentos. Não envie mensagens automaticamente.',
+                  undefined,
+                  'Atendimento Empresarial'
+                );
               }}
               disabled={!authUser || loading}
               className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-gray-300 hover:bg-[#181b24] transition-colors text-left disabled:opacity-50"
