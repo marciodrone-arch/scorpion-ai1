@@ -30,6 +30,10 @@ const initialMessage: Message = {
     'Olá! Eu sou o ScorpionAI. Estou pronto para conversar, gerar imagens, traduzir textos e estruturar informações para o seu negócio. Como posso ajudar hoje?',
 };
 
+function removeDecorativeEmojis(text: string): string {
+  return text.replace(/[\p{Extended_Pictographic}\uFE0F\u200D]/gu, '').replace(/[ \t]+\n/g, '\n').replace(/ {2,}/g, ' ').trim();
+}
+
 function getStorageKey(userId: string) {
   return `${STORAGE_PREFIX}_${userId}`;
 }
@@ -551,7 +555,7 @@ export default function Home() {
 
       const assistantMessage: Message = {
         role: 'assistant',
-        content: data.reply || 'Não recebi uma resposta válida.',
+        content: removeDecorativeEmojis(data.reply || 'Não recebi uma resposta válida.'),
         imageUrl: data.imageUrl,
         provider: data.provider,
       };
