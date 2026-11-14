@@ -31,7 +31,21 @@ const initialMessage: Message = {
 };
 
 function removeDecorativeEmojis(text: string): string {
-  return text.replace(/[\p{Extended_Pictographic}\uFE0F\u200D]/gu, '').replace(/[ \t]+\n/g, '\n').replace(/ {2,}/g, ' ').trim();
+  const withoutEmojis = Array.from(text)
+    .filter((character) => {
+      const code = character.codePointAt(0) ?? 0;
+      const isEmoji =
+        (code >= 0x1F000 && code <= 0x1FAFF) ||
+        (code >= 0x2600 && code <= 0x27BF) ||
+        (code >= 0x2300 && code <= 0x23FF) ||
+        code === 0xFE0F ||
+        code === 0x200D ||
+        code === 0x20E3;
+      return !isEmoji;
+    })
+    .join('');
+
+  return withoutEmojis.replace(/[ \\t]+\\n/g, '\\n').replace(/ {2,}/g, ' ').trim();
 }
 
 function getStorageKey(userId: string) {
