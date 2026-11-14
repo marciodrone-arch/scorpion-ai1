@@ -235,10 +235,21 @@ function buildMapsReply(message: string): string | null {
 
   if (!asksLocation) return null;
 
-  const address = text
-    .replace(/^.*?\b(?:endereco|endereço|localize|localizar|onde fica|onde esta|onde está|pesquise|pesquisar|procurar|mapa|maps)\b\s*(?:de|do|da|o|a)?\s*/i, "")
+  const streetAddressMatch = text.match(
+    /\b(?:rua|r\.|avenida|av\.|travessa|tv\.|alameda|rodovia|estrada|praça|praca)\s+.+$/i
+  );
+
+  const addressSource = streetAddressMatch
+    ? streetAddressMatch[0]
+    : text.replace(
+        /^.*?\b(?:endereco|endereço|localize|localizar|onde fica|onde esta|onde está|pesquise|pesquisar|procurar|mapa|maps)\b\s*(?:de|do|da|o|a)?\s*/i,
+        ""
+      );
+
+  const address = addressSource
+    .replace(/\s+(?:por favor|por gentileza|por obséquio|obrigado|obrigada)\s*[.!?]*$/i, "")
     .trim()
-    .replace(/[.!?]+$/, "");
+    .replace(/[.!?,;]+$/, "");
 
   if (!address || /^(minha rua|minha localizacao|minha localização|aqui|perto de mim|meu endereco|minha casa)$/i.test(address)) {
     return "Posso localizar um endereço no Google Maps, mas preciso de uma referência. Diga o nome da rua, número (se souber), bairro e cidade. Você pode falar pelo microfone; vou usar o texto reconhecido para preparar a pesquisa.";
