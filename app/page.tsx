@@ -166,6 +166,7 @@ export default function Home() {
   const [autoSpeak, setAutoSpeak] = useState(true);
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [selectedVoiceURI, setSelectedVoiceURI] = useState('');
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -1183,6 +1184,30 @@ export default function Home() {
 
         <div className="p-3 sm:p-6 bg-[#0a0c10] border-t border-gray-800/60 shrink-0">
           <div className="max-w-3xl mx-auto relative">
+            {showEmojiPicker && (
+              <div className="absolute bottom-full mb-2 right-0 z-30 w-64 rounded-2xl border border-gray-700 bg-[#181b24] p-3 shadow-xl">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-semibold text-gray-200">Adicionar emoji</span>
+                  <button type="button" onClick={() => setShowEmojiPicker(false)} className="text-gray-400 hover:text-white text-sm" aria-label="Fechar emojis">✕</button>
+                </div>
+                <div className="grid grid-cols-8 gap-1">
+                  {['😀','😃','😄','😁','😊','😉','😍','🥰','😎','🤔','😂','🤣','😭','😢','😡','👍','👎','👏','🙏','❤️','💙','🔥','✨','🎉','🚀','💡','💻','📌','✅','❌','⚠️','🤝'].map((emoji) => (
+                    <button
+                      key={emoji}
+                      type="button"
+                      onClick={() => {
+                        setInput((current) => current + emoji);
+                        setShowEmojiPicker(false);
+                      }}
+                      className="h-8 rounded-lg hover:bg-[#303747] text-lg transition-colors"
+                      aria-label={`Adicionar emoji ${emoji}`}
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             {pendingImage && (
               <div className="mb-3 inline-flex items-start gap-3 rounded-xl border border-gray-700 bg-[#141720] p-2">
                 <img src={pendingImage} alt="Prévia da imagem anexada" className="h-20 w-20 rounded-lg object-cover" />
@@ -1216,8 +1241,19 @@ export default function Home() {
               }}
               placeholder="Pergunte ou cole uma imagem (Ctrl+V)..."
               rows={1}
-              className="w-full bg-[#141720] text-gray-100 placeholder-gray-500 text-sm rounded-2xl pl-4 pr-44 py-3.5 border border-gray-800 focus:outline-none focus:border-red-500 resize-none shadow-inner transition-all"
+              className="w-full bg-[#141720] text-gray-100 placeholder-gray-500 text-sm rounded-2xl pl-4 pr-60 py-3.5 border border-gray-800 focus:outline-none focus:border-red-500 resize-none shadow-inner transition-all"
             />
+
+            <button
+              type="button"
+              onClick={() => setShowEmojiPicker((open) => !open)}
+              disabled={loading || !authUser}
+              aria-label="Adicionar emoji"
+              title="Adicionar emoji à mensagem"
+              className="absolute right-[13rem] bg-[#252a36] hover:bg-[#303747] disabled:opacity-50 text-gray-200 px-3 py-2 rounded-xl text-xs font-semibold transition-all"
+            >
+              😊
+            </button>
 
             <button
               type="button"
