@@ -1421,9 +1421,18 @@ export default function Home() {
               disabled={loading || !authUser}
               aria-label={isListening ? 'Parar gravação' : 'Falar com ScorpionAI'}
               title={isListening ? 'Parar gravação' : 'Falar com ScorpionAI'}
-              className={`absolute right-[9.5rem] bottom-3 ${isListening ? 'bg-red-700 animate-pulse' : 'bg-[#252a36] hover:bg-[#303747]'} disabled:opacity-50 text-gray-200 px-3 py-2 rounded-xl text-xs font-semibold transition-all`}
+              className={`absolute right-[12.5rem] bottom-3 w-10 h-10 flex items-center justify-center ${isListening ? 'bg-red-700 animate-pulse' : 'bg-[#252a36] hover:bg-[#303747]'} disabled:opacity-50 text-gray-200 rounded-xl transition-all`}
             >
-              {isListening ? '⏹' : '🎙️'}
+              {isListening ? (
+                <svg viewBox="0 0 24 24" className="w-5 h-5" fill="currentColor" aria-hidden="true">
+                  <rect x="6" y="6" width="12" height="12" rx="2" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <rect x="9" y="2" width="6" height="12" rx="3" />
+                  <path d="M5 10a7 7 0 0 0 14 0M12 17v5m-4 0h8" />
+                </svg>
+              )}
             </button>
 
             <button
@@ -1432,9 +1441,13 @@ export default function Home() {
               disabled={loading || !authUser}
               aria-label="Anexar imagem"
               title="Anexar imagem"
-              className="absolute right-[5.5rem] bottom-3 bg-[#252a36] hover:bg-[#303747] disabled:opacity-50 text-gray-200 px-3 py-2 rounded-xl text-xs font-semibold transition-all"
+              className="absolute right-[9.5rem] bottom-3 w-10 h-10 flex items-center justify-center bg-[#252a36] hover:bg-[#303747] disabled:opacity-50 text-gray-200 rounded-xl transition-all"
             >
-              📎
+              <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <rect x="3" y="3" width="18" height="18" rx="3" />
+                <circle cx="8.5" cy="8.5" r="1.5" />
+                <path d="m21 15-5-5L5 21" />
+              </svg>
             </button>
             <button
               type="button"
@@ -1442,9 +1455,12 @@ export default function Home() {
               disabled={loading || !authUser}
               aria-label="Analisar planilha CSV ou Excel"
               title="Analisar planilha CSV ou Excel"
-              className="absolute right-[2.9rem] bottom-3 bg-[#252a36] hover:bg-[#303747] disabled:opacity-50 text-gray-200 px-3 py-2 rounded-xl text-xs font-semibold transition-all"
+              className="absolute right-[6.5rem] bottom-3 w-10 h-10 flex items-center justify-center bg-[#252a36] hover:bg-[#303747] disabled:opacity-50 text-gray-200 rounded-xl transition-all"
             >
-              📊
+              <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+                <path d="M3 9h18M3 15h18M9 3v18m6-18v18" />
+              </svg>
             </button>
 
             <button
