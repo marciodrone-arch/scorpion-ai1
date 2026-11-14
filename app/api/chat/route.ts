@@ -185,7 +185,68 @@ function getMessages(message: unknown, history: unknown): ChatMessage[] {
   return messages.slice(-MAX_HISTORY_MESSAGES);
 }
 
-function isImageRequest(message: string): boolean {
+
+function buildMapsReply(message: string): string | null {
+  const text = message.trim();
+  const asksForRoute =
+    /\\b(rota|rotas|como chegar|me leve|me leva|navegar|navegacao|direcoes|trajeto|caminho|ir para|vou para|saindo de|partindo de)\\b/i.test(text);
+
+  const routePair =
+    text.match(/\\b(?:saindo de|partindo de|de)\\s+(.+?)\\s+(?:para|ate|até)\\s+(.+?)(?:[.!?]|$)/i) ||
+    text.match(/\\borigem\\s*[:=]?\\s*(.+?)\\s+destino\\s*[:=]?\\s*(.+?)(?:[.!?]|$)/i);
+
+  if (asksForRoute) {
+    if (routePair && routePair[1].trim() && routePair[2].trim()) {
+      const origin = routePair[1].trim().replace(/[.!?]+$/, "");
+      const destination = routePair[2].trim().replace(/[.!?]+$/, "");
+      const url = "https://www.google.com/maps/dir/?api=1"
+        + "&origin=" + encodeURIComponent(origin)
+        + "&destination=" + encodeURIComponent(destination)
+        + "&travelmode=driving";
+      return "Preparei a rota para você consultar no Google Maps.\n\n"
+        + "**Origem:** " + origin + "\n"
+        + "**Destino:** " + destination + "\n\n"
+        + "[Abrir rota no Google Maps](" + url + ")\n\n"
+        + "O Google Maps calculará o trajeto e poderá ajustar o percurso conforme as condições atuais. Confira se os endereços estão corretos antes de sair.";
+    }
+
+    const destinationMatch =
+      text.match(/\\b(?:para|ate|até|em|no|na)\\s+(.+?)(?:[.!?]|$)/i);
+    if (destinationMatch && destinationMatch[1].trim()) {
+      const destination = destinationMatch[1].trim().replace(/[.!?]+$/, "");
+      const url = "https://www.google.com/maps/dir/?api=1"
+        + "&destination=" + encodeURIComponent(destination)
+        + "&travelmode=driving";
+      return "Posso ajudar com essa rota. O link abaixo abre o Google Maps com o destino informado.\n\n"
+        + "**Destino:** " + destination + "\n\n"
+        + "[Abrir rota no Google Maps](" + url + ")\n\n"
+        + "O Maps poderá usar sua localização atual como origem, se você autorizar o acesso à localização no dispositivo. Confirme o destino antes de iniciar.";
+    }
+
+    return "Claro! Para montar a rota, diga o endereço de destino. Se quiser informar também a origem, fale assim: “rota da Rua A, bairro X, Curitiba, até a Rua B, bairro Y, Curitiba”. Você pode digitar ou usar o microfone.";
+  }
+
+  const asksLocation =
+    /\\b(mapa|maps|endereco|endereço|localizar|localize|localizacao|localização|onde fica|onde esta|onde está|procurar|pesquisar)\\b/i.test(text);
+
+  if (!asksLocation) return null;
+
+  const address = text
+    .replace(/^.*?\\b(?:endereco|endereço|localize|localizar|onde fica|onde esta|onde está|pesquise|pesquisar|procurar|mapa|maps)\\b\\s*(?:de|do|da|o|a)?\\s*/i, "")
+    .trim()
+    .replace(/[.!?]+$/, "");
+
+  if (!address || /^(minha rua|minha localizacao|minha localização|aqui|perto de mim|meu endereco|minha casa)$/i.test(address)) {
+    return "Posso localizar um endereço no Google Maps, mas preciso de uma referência. Diga o nome da rua, número (se souber), bairro e cidade. Você pode falar pelo microfone; vou usar o texto reconhecido para preparar a pesquisa.";
+  }
+
+  const url = "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(address);
+  return "Preparei uma pesquisa para o endereço informado.\n\n"
+    + "**Local informado:** " + address + "\n\n"
+    + "[Pesquisar no Google Maps](" + url + ")\n\n"
+    + "A pesquisa abre no Google Maps. Isso ainda não confirma que o endereço está correto; confira o resultado, o bairro e a cidade antes de usar.";
+}
+\nfunction isImageRequest(message: string): boolean {
   const explicitImageRequest =
     /\b(gerar|gere|crie|criar|desenhe|desenhar|faça|fazer|produza|produzir|generate|create|draw|make|produce)\s+(an?\s+|uma?\s+)?(imagem|image|picture|foto|photo|ilustração|illustration|desenho|drawing|arte|art)\b/i.test(message) ||
     /\b(imagem|image|picture|foto|photo|ilustração|illustration|desenho|drawing)\s+(de|do|da|of)\b/i.test(message);
@@ -575,6 +636,14 @@ export async function POST(req: Request) {
         },
         { status: 429 }
       );
+    }
+
+    const mapsReply = buildMapsReply(message);
+    if (mapsReply) {
+      return NextResponse.json({
+        reply: mapsReply,
+        provider: "ScorpionAI • Google Maps",
+      });
     }
 
     if (imageForVision) {
