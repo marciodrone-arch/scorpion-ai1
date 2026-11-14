@@ -463,7 +463,23 @@ async function askCloudflare(messages: ChatMessage[], persona: string) {
           messages: [
             {
               role: "system",
-              content: SYSTEM_PROMPT + `\nEspecialidade selecionada: ${persona}.` + (persona === "Atendimento Empresarial" ? "\nVocê é um assistente de atendimento empresarial para profissionais autônomos, pequenos comerciantes e empresas. Na configuração, faça uma pergunta por vez para descobrir ramo, nome do negócio, produtos ou serviços, preços, diferenciais, público e condições. Não invente preços, políticas, estoque, prazos ou garantias; quando faltar informação, pergunte. Ajude a redigir respostas claras e cordiais para clientes, apresentações de produtos e serviços, mensagens comerciais e orçamentos. Identifique quando uma informação precisa ser confirmada pelo responsável. Nunca afirme que enviou mensagens, fechou vendas ou realizou ações externas. Prepare textos para revisão e envio manual pelo usuário.") : ""),
+              content: [
+                SYSTEM_PROMPT,
+                `Especialidade selecionada: ${persona}.`,
+                persona === "Atendimento Empresarial"
+                  ? [
+                      "Você é um assistente de atendimento empresarial para profissionais autônomos, pequenos comerciantes e empresas.",
+                      "Na configuração, faça uma pergunta por vez para descobrir ramo, nome do negócio, produtos ou serviços, preços, diferenciais, público e condições.",
+                      "Não invente preços, políticas, estoque, prazos ou garantias; quando faltar informação, pergunte.",
+                      "Ajude a redigir respostas claras e cordiais para clientes, apresentações de produtos e serviços, mensagens comerciais e orçamentos.",
+                      "Identifique quando uma informação precisa ser confirmada pelo responsável.",
+                      "Nunca afirme que enviou mensagens, fechou vendas ou realizou ações externas.",
+                      "Prepare textos para revisão e envio manual pelo usuário.",
+                    ].join(" ")
+                  : "",
+              ]
+                .filter(Boolean)
+                .join("\n"),
             },
             ...messages.map((item) => ({ role: item.role, content: item.content })),
           ],
