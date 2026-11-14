@@ -226,7 +226,11 @@ function buildMapsReply(message: string): string | null {
     return "Claro! Para montar a rota, diga o endereço de destino. Se quiser informar também a origem, fale assim: “rota da Rua A, bairro X, Curitiba, até a Rua B, bairro Y, Curitiba”. Você pode digitar ou usar o microfone.";
   }
 
+  const isAddressLike =
+    /^(?:rua|r\.|avenida|av\.|travessa|tv\.|alameda|rodovia|estrada|praça|praca)\s+/i.test(text);
+
   const asksLocation =
+    isAddressLike ||
     /\b(mapa|maps|endereco|endereço|localizar|localize|localizacao|localização|onde fica|onde esta|onde está|procurar|pesquisar)\b/i.test(text);
 
   if (!asksLocation) return null;
@@ -475,7 +479,19 @@ async function askCloudflare(messages: ChatMessage[], persona: string) {
       throw new Error("Cloudflare Workers AI não retornou texto. Verifique o formato da resposta do modelo.");
     }
 
-    return { reply, provider: "Cloudflare Workers AI", model };
+    // Nunca exibir nem narrar o bloco interno de raciocínio do modelo.
+    const cleanReply = reply
+      .replace(/<think>[\s\S]*?<\/think>/gi, "")
+      .replace(/^[\s\S]*?<\/think>\s*/i, "")
+      .replace(/<think>[\s\S]*$/i, "")
+      .replace(/<\/?think>/gi, "")
+      .trim();
+
+    if (!cleanReply) {
+      throw new Error("O modelo não retornou uma resposta final válida.");
+    }
+
+    return { reply: cleanReply, provider: "Cloudflare Workers AI", model };
   } catch (error) {
     if (timeout.signal.aborted) throw new Error("Cloudflare Workers AI: tempo limite de 25 segundos excedido.");
     throw error;
