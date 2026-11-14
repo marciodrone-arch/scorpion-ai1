@@ -7,6 +7,7 @@ type Message = {
   content: string;
   imageUrl?: string;
   provider?: string;
+  document?: boolean;
 };
 
 type ChatRecord = {
@@ -169,6 +170,7 @@ function mapServerConversation(item: any): ChatRecord | null {
             message.provider ||
             providerPart?.provider ||
             undefined,
+          document: message.document === true,
         };
       })
       .filter(
@@ -572,6 +574,7 @@ export default function Home() {
         content: removeDecorativeEmojis(data.reply || 'Não recebi uma resposta válida.'),
         imageUrl: data.imageUrl,
         provider: data.provider,
+        document: (personaOverride ?? persona) === 'Criador de documentos',
       };
 
       const updatedMessages = [...newMessages, assistantMessage];
@@ -634,6 +637,56 @@ export default function Home() {
     } catch {
       alert('Não foi possível copiar o texto.');
     }
+  };
+
+  const exportDocumentPdf = (content: string) => {
+    const printWindow = window.open('', '_blank', 'width=900,height=700');
+    if (!printWindow) {
+      alert('Permita a abertura de janelas para salvar o documento em PDF.');
+      return;
+    }
+
+    const escapeHtml = (value: string) =>
+      value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
+    const formatInline = (value: string) =>
+      escapeHtml(value).replace(/\\*\\*(.+?)\\*\\*/g, '<strong>$1</strong>');
+
+    const body = content.split('\\n').map((line) => {
+      const trimmed = line.trim();
+      if (!trimmed) return '<div class="space"></div>';
+      if (trimmed.startsWith('### ')) return '<h3>' + formatInline(trimmed.slice(4)) + '</h3>';
+      if (trimmed.startsWith('## ')) return '<h2>' + formatInline(trimmed.slice(3)) + '</h2>';
+      if (trimmed.startsWith('# ')) return '<h1>' + formatInline(trimmed.slice(2)) + '</h1>';
+      if (/^[-*]\\s+/.test(trimmed)) return '<p class="list">• ' + formatInline(trimmed.replace(/^[-*]\\s+/, '')) + '</p>';
+      if (/^\\d+[.)]\\s+/.test(trimmed)) return '<p class="list">' + formatInline(trimmed) + '</p>';
+      return '<p>' + formatInline(trimmed) + '</p>';
+    }).join('');
+
+    printWindow.document.write(`<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Documento - ScorpionAI</title>
+<style>
+  @page { size: A4; margin: 22mm 20mm; }
+  body { font-family: Arial, sans-serif; color: #20242b; font-size: 11pt; line-height: 1.55; }
+  h1 { font-size: 20pt; margin: 0 0 18pt; text-align: center; }
+  h2 { font-size: 14pt; margin: 18pt 0 8pt; border-bottom: 1px solid #d5d9df; padding-bottom: 4pt; }
+  h3 { font-size: 12pt; margin: 14pt 0 6pt; }
+  p { margin: 0 0 7pt; white-space: pre-wrap; }
+  .list { margin-left: 16pt; }
+  .space { height: 5pt; }
+  strong { font-weight: 700; }
+</style>
+</head>
+<body><main>${body}</main>
+<script>window.onload = function () { window.focus(); window.print(); };</script>
+</body>
+</html>`);
+    printWindow.document.close();
   };
 
   const startListening = () => {
@@ -926,6 +979,7 @@ export default function Home() {
               <option value="Atendimento Empresarial">
                 Atendimento Empresarial
               </option>
+              <option value="Criador de documentos">📄 Criador de documentos</option>
             </select>
           </div>
 
@@ -969,6 +1023,22 @@ export default function Home() {
               className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-gray-300 hover:bg-[#181b24] transition-colors text-left disabled:opacity-50"
             >
               <span>📈</span><span>Assistente comercial</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setIsSidebarOpen(false);
+                handleSend(
+                  'Quero criar um documento profissional. Faça uma pergunta por vez para identificar se preciso de orçamento, proposta comercial ou relatório e coletar somente os dados necessários. Não invente informações.',
+                  undefined,
+                  'Criador de documentos'
+                );
+                setPersona('Criador de documentos');
+              }}
+              disabled={!authUser || loading}
+              className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-gray-300 hover:bg-[#181b24] transition-colors text-left disabled:opacity-50"
+            >
+              <span>📄</span><span>Criar documentos</span>
             </button>
 
             <button
@@ -1213,6 +1283,16 @@ export default function Home() {
                       >
                         {copiedIndex === index ? '✅ Copiado!' : '📋 Copiar'}
                       </button>
+                      {msg.document && (
+                        <button
+                          type="button"
+                          onClick={() => exportDocumentPdf(msg.content)}
+                          className="text-[11px] text-emerald-300 hover:text-white transition-colors flex items-center gap-1 bg-emerald-900/30 px-2 py-1 rounded-md shrink-0"
+                          title="Imprimir ou salvar como PDF"
+                        >
+                          Salvar PDF
+                        </button>
+                      )}
                     </div>
                   </div>
                 )}
