@@ -49,7 +49,7 @@ export async function POST(req: Request) {
     const timeout = setTimeout(() => controller.abort(), 55000);
     let response: Response;
     try {
-      const endpoint = "https://api.cloudflare.com/client/v4/accounts/" + accountId + "/ai/run/" + VIDEO_MODEL;
+      const endpoint = "https://api.cloudflare.com/client/v4/accounts/" + accountId + "/ai/run";
       response = await fetch(endpoint, {
         method: "POST",
         headers: {
@@ -57,10 +57,13 @@ export async function POST(req: Request) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          prompt,
-          duration: VIDEO_DURATION_SECONDS,
-          aspect_ratio: aspectRatio,
-          resolution: VIDEO_RESOLUTION,
+          model: VIDEO_MODEL,
+          input: {
+            prompt,
+            duration: VIDEO_DURATION_SECONDS,
+            aspect_ratio: aspectRatio,
+            resolution: VIDEO_RESOLUTION,
+          },
         }),
         signal: controller.signal,
         cache: "no-store",
