@@ -34,6 +34,41 @@ function getStorageKey(userId: string) {
   return `${STORAGE_PREFIX}_${userId}`;
 }
 
+function renderMessageContent(content: string): React.ReactNode {
+  const parts = content.split(/(\[[^\]]+\]\(https?:\/\/[^)\s]+\)|\*\*[^*]+\*\*|`[^`]+`)/g);
+
+  return parts.map((part, index) => {
+    const link = part.match(/^\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)$/);
+    if (link) {
+      return (
+        <a
+          key={index}
+          href={link[2]}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-sky-400 underline underline-offset-2 hover:text-sky-300 break-all"
+        >
+          {link[1]}
+        </a>
+      );
+    }
+
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return <strong key={index}>{part.slice(2, -2)}</strong>;
+    }
+
+    if (part.startsWith("`") && part.endsWith("`")) {
+      return (
+        <code key={index} className="rounded bg-black/30 px-1 py-0.5 text-emerald-300">
+          {part.slice(1, -1)}
+        </code>
+      );
+    }
+
+    return part;
+  });
+}
+
 function resizeImageForEditing(imageUrl: string, maxDimension = 512): Promise<string> {
   return new Promise((resolve, reject) => {
     const image = new Image();
@@ -1117,7 +1152,7 @@ export default function Home() {
                 }`}
               >
                 <p className="whitespace-pre-wrap font-sans break-words">
-                  {msg.content}
+                  {msg.role === 'assistant' ? renderMessageContent(msg.content) : msg.content}
                 </p>
 
                 {msg.imageUrl && (
