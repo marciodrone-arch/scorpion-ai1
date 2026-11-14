@@ -208,6 +208,7 @@ export default function Home() {
   const [messages, setMessages] = useState<Message[]>([initialMessage]);
   const [input, setInput] = useState('');
   const [pendingImage, setPendingImage] = useState<string | null>(null);
+  const [spreadsheetLoading, setSpreadsheetLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [persona, setPersona] = useState('Geral');
@@ -228,6 +229,7 @@ export default function Home() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const spreadsheetInputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<any>(null);
   const shouldContinueRecognitionRef = useRef(false);
   const recognizedSpeechRef = useRef('');
@@ -499,6 +501,52 @@ export default function Home() {
       setPendingImage(image);
     } catch (error) {
       alert(error instanceof Error ? error.message : 'Falha ao carregar a imagem.');
+    }
+  };
+
+  const handleSpreadsheetFile = async (file?: File) => {
+    if (!file || loading || spreadsheetLoading) return;
+    const extension = file.name.toLowerCase().split('.').pop();
+    if (!['csv', 'xlsx'].includes(extension || '')) {
+      alert('Formato não aceito. Envie uma planilha CSV ou Excel (.xlsx).');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      alert('A planilha deve ter no máximo 5 MB.');
+      return;
+    }
+    if (!authUser?.id) {
+      alert('Entre na sua conta para analisar uma planilha.');
+      return;
+    }
+    setSpreadsheetLoading(true);
+    setLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const response = await fetch('/api/spreadsheet', {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Não foi possível analisar a planilha.');
+      const report = data.report as string;
+      const chatId = activeChatId || Date.now().toString();
+      if (!activeChatId) setActiveChatId(chatId);
+      const updatedMessages: Message[] = [
+        ...messages,
+        { role: 'user', content: 'Analisar planilha: ' + file.name },
+        { role: 'assistant', content: report, provider: 'Análise de planilhas • ScorpionAI' },
+      ];
+      setMessages(updatedMessages);
+      setCurrentProvider('Análise de planilhas • ScorpionAI');
+      await persistConversation(chatId, updatedMessages);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Falha ao analisar a planilha.');
+    } finally {
+      setSpreadsheetLoading(false);
+      setLoading(false);
     }
   };
 
@@ -1341,6 +1389,13 @@ export default function Home() {
               className="hidden"
               onChange={(e) => { void handleImageFile(e.target.files?.[0]); e.currentTarget.value = ''; }}
             />
+            <input
+              ref={spreadsheetInputRef}
+              type="file"
+              accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              className="hidden"
+              onChange={(e) => { void handleSpreadsheetFile(e.target.files?.[0]); e.currentTarget.value = ''; }}
+            />
             <textarea
               value={input}
               onPaste={(e) => {
@@ -1366,9 +1421,18 @@ export default function Home() {
               disabled={loading || !authUser}
               aria-label={isListening ? 'Parar gravação' : 'Falar com ScorpionAI'}
               title={isListening ? 'Parar gravação' : 'Falar com ScorpionAI'}
-              className={`absolute right-[9.5rem] bottom-3 ${isListening ? 'bg-red-700 animate-pulse' : 'bg-[#252a36] hover:bg-[#303747]'} disabled:opacity-50 text-gray-200 px-3 py-2 rounded-xl text-xs font-semibold transition-all`}
+              className={`absolute right-[12.5rem] bottom-3 w-10 h-10 flex items-center justify-center ${isListening ? 'bg-red-700 animate-pulse' : 'bg-[#252a36] hover:bg-[#303747]'} disabled:opacity-50 text-gray-200 rounded-xl transition-all`}
             >
-              {isListening ? '⏹' : '🎙️'}
+              {isListening ? (
+                <svg viewBox="0 0 24 24" className="w-5 h-5" fill="currentColor" aria-hidden="true">
+                  <rect x="6" y="6" width="12" height="12" rx="2" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <rect x="9" y="2" width="6" height="12" rx="3" />
+                  <path d="M5 10a7 7 0 0 0 14 0M12 17v5m-4 0h8" />
+                </svg>
+              )}
             </button>
 
             <button
@@ -1377,9 +1441,26 @@ export default function Home() {
               disabled={loading || !authUser}
               aria-label="Anexar imagem"
               title="Anexar imagem"
-              className="absolute right-[5.5rem] bottom-3 bg-[#252a36] hover:bg-[#303747] disabled:opacity-50 text-gray-200 px-3 py-2 rounded-xl text-xs font-semibold transition-all"
+              className="absolute right-[9.5rem] bottom-3 w-10 h-10 flex items-center justify-center bg-[#252a36] hover:bg-[#303747] disabled:opacity-50 text-gray-200 rounded-xl transition-all"
             >
-              📎
+              <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <rect x="3" y="3" width="18" height="18" rx="3" />
+                <circle cx="8.5" cy="8.5" r="1.5" />
+                <path d="m21 15-5-5L5 21" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              onClick={() => spreadsheetInputRef.current?.click()}
+              disabled={loading || !authUser}
+              aria-label="Analisar planilha CSV ou Excel"
+              title="Analisar planilha CSV ou Excel"
+              className="absolute right-[6.5rem] bottom-3 w-10 h-10 flex items-center justify-center bg-[#252a36] hover:bg-[#303747] disabled:opacity-50 text-gray-200 rounded-xl transition-all"
+            >
+              <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+                <path d="M3 9h18M3 15h18M9 3v18m6-18v18" />
+              </svg>
             </button>
 
             <button
