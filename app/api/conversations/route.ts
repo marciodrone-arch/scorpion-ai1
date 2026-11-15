@@ -254,6 +254,13 @@ export async function POST(req: NextRequest) {
         });
       }
 
+      if (message.document === true) {
+        parts.push({
+          type: "document",
+          text: "true",
+        });
+      }
+
       await client.query(
         `INSERT INTO public.messages
           (id, "conversationId", "userId", role, parts, "createdAt")

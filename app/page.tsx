@@ -7,6 +7,7 @@ type Message = {
   content: string;
   imageUrl?: string;
   provider?: string;
+  document?: boolean;
 };
 
 type ChatRecord = {
@@ -29,6 +30,24 @@ const initialMessage: Message = {
   content:
     'Olá! Eu sou o ScorpionAI. Estou pronto para conversar, gerar imagens, traduzir textos e estruturar informações para o seu negócio. Como posso ajudar hoje?',
 };
+
+function removeDecorativeEmojis(text: string): string {
+  const withoutEmojis = Array.from(text)
+    .filter((character) => {
+      const code = character.codePointAt(0) ?? 0;
+      const isEmoji =
+        (code >= 0x1F000 && code <= 0x1FAFF) ||
+        (code >= 0x2600 && code <= 0x27BF) ||
+        (code >= 0x2300 && code <= 0x23FF) ||
+        code === 0xFE0F ||
+        code === 0x200D ||
+        code === 0x20E3;
+      return !isEmoji;
+    })
+    .join('');
+
+  return withoutEmojis.replace(/[ \t]+\n/g, '\n').replace(/ {2,}/g, ' ').trim();
+}
 
 function getStorageKey(userId: string) {
   return `${STORAGE_PREFIX}_${userId}`;
@@ -131,6 +150,10 @@ function mapServerConversation(item: any): ChatRecord | null {
           (part: any) => part?.type === 'provider'
         );
 
+        const documentPart = parts.find(
+          (part: any) => part?.type === 'document'
+        );
+
         const content =
           typeof message.content === 'string'
             ? message.content
@@ -151,6 +174,7 @@ function mapServerConversation(item: any): ChatRecord | null {
             message.provider ||
             providerPart?.provider ||
             undefined,
+          document: message.document === true || documentPart?.text === 'true',
         };
       })
       .filter(
@@ -482,7 +506,7 @@ export default function Home() {
     }
   };
 
-  const handleSend = async (textToSend?: string, imageToSend?: string) => {
+  const handleSend = async (textToSend?: string, imageToSend?: string, personaOverride?: string) => {
     const attachedImage = imageToSend ?? pendingImage ?? undefined;
     const messageText = (textToSend ?? input).trim() || (attachedImage ? 'Analise esta imagem e me explique o que aparece nela.' : '');
 
@@ -537,7 +561,7 @@ export default function Home() {
             content: item.content,
             ...(item.imageUrl ? { imageUrl: item.imageUrl } : {}),
           })),
-          persona,
+          persona: personaOverride ?? persona,
         }),
       });
 
@@ -551,9 +575,10 @@ export default function Home() {
 
       const assistantMessage: Message = {
         role: 'assistant',
-        content: data.reply || 'Não recebi uma resposta válida.',
+        content: removeDecorativeEmojis(data.reply || 'Não recebi uma resposta válida.'),
         imageUrl: data.imageUrl,
         provider: data.provider,
+        document: (personaOverride ?? persona) === 'Criador de documentos',
       };
 
       const updatedMessages = [...newMessages, assistantMessage];
@@ -616,6 +641,56 @@ export default function Home() {
     } catch {
       alert('Não foi possível copiar o texto.');
     }
+  };
+
+  const exportDocumentPdf = (content: string) => {
+    const printWindow = window.open('', '_blank', 'width=900,height=700');
+    if (!printWindow) {
+      alert('Permita a abertura de janelas para salvar o documento em PDF.');
+      return;
+    }
+
+    const escapeHtml = (value: string) =>
+      value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
+    const formatInline = (value: string) =>
+      escapeHtml(value).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+
+    const body = content.split('\n').map((line) => {
+      const trimmed = line.trim();
+      if (!trimmed) return '<div class="space"></div>';
+      if (trimmed.startsWith('### ')) return '<h3>' + formatInline(trimmed.slice(4)) + '</h3>';
+      if (trimmed.startsWith('## ')) return '<h2>' + formatInline(trimmed.slice(3)) + '</h2>';
+      if (trimmed.startsWith('# ')) return '<h1>' + formatInline(trimmed.slice(2)) + '</h1>';
+      if (/^[-*]\s+/.test(trimmed)) return '<p class="list">• ' + formatInline(trimmed.replace(/^[-*]\s+/, '')) + '</p>';
+      if (/^\d+[.)]\s+/.test(trimmed)) return '<p class="list">' + formatInline(trimmed) + '</p>';
+      return '<p>' + formatInline(trimmed) + '</p>';
+    }).join('');
+
+    printWindow.document.write(`<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Documento - ScorpionAI</title>
+<style>
+  @page { size: A4; margin: 22mm 20mm; }
+  body { font-family: Arial, sans-serif; color: #20242b; font-size: 11pt; line-height: 1.55; }
+  h1 { font-size: 20pt; margin: 0 0 18pt; text-align: center; }
+  h2 { font-size: 14pt; margin: 18pt 0 8pt; border-bottom: 1px solid #d5d9df; padding-bottom: 4pt; }
+  h3 { font-size: 12pt; margin: 14pt 0 6pt; }
+  p { margin: 0 0 7pt; white-space: pre-wrap; }
+  .list { margin-left: 16pt; }
+  .space { height: 5pt; }
+  strong { font-weight: 700; }
+</style>
+</head>
+<body><main>${body}</main>
+<script>window.onload = function () { window.focus(); window.print(); };</script>
+</body>
+</html>`);
+    printWindow.document.close();
   };
 
   const startListening = () => {
@@ -905,6 +980,10 @@ export default function Home() {
               <option value="QA Tester & Auditor">
                 🔍 Engenheiro de QA & Testes
               </option>
+              <option value="Atendimento Empresarial">
+                Atendimento Empresarial
+              </option>
+              <option value="Criador de documentos">📄 Criador de documentos</option>
             </select>
           </div>
 
@@ -937,12 +1016,33 @@ export default function Home() {
             <button
               onClick={() => {
                 setIsSidebarOpen(false);
-                handleSend('Me ajude a estruturar uma estratégia comercial forte');
+                setPersona('Atendimento Empresarial');
+                handleSend(
+                  'Quero configurar meu atendimento empresarial. Faça uma pergunta por vez para conhecer meu negócio e, depois, me ajude a responder clientes, apresentar produtos e serviços, preparar mensagens comerciais e elaborar orçamentos. Não envie mensagens automaticamente.',
+                  undefined,
+                  'Atendimento Empresarial'
+                );
               }}
               disabled={!authUser || loading}
               className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-gray-300 hover:bg-[#181b24] transition-colors text-left disabled:opacity-50"
             >
               <span>📈</span><span>Assistente comercial</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setIsSidebarOpen(false);
+                handleSend(
+                  'Quero criar um documento profissional. Faça uma pergunta por vez para identificar se preciso de orçamento, proposta comercial ou relatório e coletar somente os dados necessários. Não invente informações.',
+                  undefined,
+                  'Criador de documentos'
+                );
+                setPersona('Criador de documentos');
+              }}
+              disabled={!authUser || loading}
+              className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-gray-300 hover:bg-[#181b24] transition-colors text-left disabled:opacity-50"
+            >
+              <span>📄</span><span>Criar documentos</span>
             </button>
 
             <button
@@ -1187,6 +1287,16 @@ export default function Home() {
                       >
                         {copiedIndex === index ? '✅ Copiado!' : '📋 Copiar'}
                       </button>
+                      {msg.document && (
+                        <button
+                          type="button"
+                          onClick={() => exportDocumentPdf(msg.content)}
+                          className="text-[11px] text-emerald-300 hover:text-white transition-colors flex items-center gap-1 bg-emerald-900/30 px-2 py-1 rounded-md shrink-0"
+                          title="Imprimir ou salvar como PDF"
+                        >
+                          Salvar PDF
+                        </button>
+                      )}
                     </div>
                   </div>
                 )}
@@ -1227,7 +1337,7 @@ export default function Home() {
                 </div>
               </div>
             )}
-            <div className="relative flex items-center">
+            <div className="relative">
             <input
               ref={imageInputRef}
               type="file"
@@ -1250,8 +1360,8 @@ export default function Home() {
                 }
               }}
               placeholder="Pergunte ou cole uma imagem (Ctrl+V)..."
-              rows={1}
-              className="w-full bg-[#141720] text-gray-100 placeholder-gray-500 text-sm rounded-2xl pl-4 pr-60 py-3.5 border border-gray-800 focus:outline-none focus:border-red-500 resize-none shadow-inner transition-all"
+              rows={3}
+              className="w-full min-h-[112px] max-h-60 overflow-y-auto bg-[#141720] text-gray-100 placeholder-gray-500 text-sm rounded-2xl pl-4 pr-4 pt-3.5 pb-14 border border-gray-800 focus:outline-none focus:border-red-500 resize-none shadow-inner transition-all"
             />
 
             <button
@@ -1260,7 +1370,7 @@ export default function Home() {
               disabled={loading || !authUser}
               aria-label={isListening ? 'Parar gravação' : 'Falar com ScorpionAI'}
               title={isListening ? 'Parar gravação' : 'Falar com ScorpionAI'}
-              className={`absolute right-[9.5rem] ${isListening ? 'bg-red-700 animate-pulse' : 'bg-[#252a36] hover:bg-[#303747]'} disabled:opacity-50 text-gray-200 px-3 py-2 rounded-xl text-xs font-semibold transition-all`}
+              className={`absolute right-[9.5rem] bottom-3 ${isListening ? 'bg-red-700 animate-pulse' : 'bg-[#252a36] hover:bg-[#303747]'} disabled:opacity-50 text-gray-200 px-3 py-2 rounded-xl text-xs font-semibold transition-all`}
             >
               {isListening ? '⏹' : '🎙️'}
             </button>
@@ -1271,7 +1381,7 @@ export default function Home() {
               disabled={loading || !authUser}
               aria-label="Anexar imagem"
               title="Anexar imagem"
-              className="absolute right-[5.5rem] bg-[#252a36] hover:bg-[#303747] disabled:opacity-50 text-gray-200 px-3 py-2 rounded-xl text-xs font-semibold transition-all"
+              className="absolute right-[5.5rem] bottom-3 bg-[#252a36] hover:bg-[#303747] disabled:opacity-50 text-gray-200 px-3 py-2 rounded-xl text-xs font-semibold transition-all"
             >
               📎
             </button>
@@ -1279,7 +1389,7 @@ export default function Home() {
             <button
               onClick={() => handleSend()}
               disabled={loading || (!input.trim() && !pendingImage) || !authUser}
-              className="absolute right-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white px-4 py-2 rounded-xl text-xs font-semibold transition-all shadow-md shadow-red-900/20 flex items-center gap-1.5"
+              className="absolute right-2 bottom-3 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white px-4 py-2 rounded-xl text-xs font-semibold transition-all shadow-md shadow-red-900/20 flex items-center gap-1.5"
             >
               <span>Enviar</span>
               <span>↑</span>
