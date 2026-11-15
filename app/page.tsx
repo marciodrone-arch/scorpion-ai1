@@ -46,7 +46,7 @@ function removeDecorativeEmojis(text: string): string {
     })
     .join('');
 
-  return withoutEmojis.replace(/[ \\t]+\\n/g, '\\n').replace(/ {2,}/g, ' ').trim();
+  return withoutEmojis.replace(/[ \t]+\n/g, '\n').replace(/ {2,}/g, ' ').trim();
 }
 
 function getStorageKey(userId: string) {
@@ -150,6 +150,10 @@ function mapServerConversation(item: any): ChatRecord | null {
           (part: any) => part?.type === 'provider'
         );
 
+        const documentPart = parts.find(
+          (part: any) => part?.type === 'document'
+        );
+
         const content =
           typeof message.content === 'string'
             ? message.content
@@ -170,7 +174,7 @@ function mapServerConversation(item: any): ChatRecord | null {
             message.provider ||
             providerPart?.provider ||
             undefined,
-          document: message.document === true,
+          document: message.document === true || documentPart?.text === 'true',
         };
       })
       .filter(
