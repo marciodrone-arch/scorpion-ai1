@@ -212,6 +212,7 @@ export default function Home() {
   const [messages, setMessages] = useState<Message[]>([initialMessage]);
   const [input, setInput] = useState('');
   const [pendingImage, setPendingImage] = useState<string | null>(null);
+  const [spreadsheetLoading, setSpreadsheetLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [persona, setPersona] = useState('Geral');
@@ -232,6 +233,7 @@ export default function Home() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const spreadsheetInputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<any>(null);
   const shouldContinueRecognitionRef = useRef(false);
   const recognizedSpeechRef = useRef('');
@@ -503,6 +505,52 @@ export default function Home() {
       setPendingImage(image);
     } catch (error) {
       alert(error instanceof Error ? error.message : 'Falha ao carregar a imagem.');
+    }
+  };
+
+  const handleSpreadsheetFile = async (file?: File) => {
+    if (!file || loading || spreadsheetLoading) return;
+    const extension = file.name.toLowerCase().split('.').pop();
+    if (!['csv', 'xlsx'].includes(extension || '')) {
+      alert('Formato não aceito. Envie uma planilha CSV ou Excel (.xlsx).');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      alert('A planilha deve ter no máximo 5 MB.');
+      return;
+    }
+    if (!authUser?.id) {
+      alert('Entre na sua conta para analisar uma planilha.');
+      return;
+    }
+    setSpreadsheetLoading(true);
+    setLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const response = await fetch('/api/spreadsheet', {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Não foi possível analisar a planilha.');
+      const report = data.report as string;
+      const chatId = activeChatId || Date.now().toString();
+      if (!activeChatId) setActiveChatId(chatId);
+      const updatedMessages: Message[] = [
+        ...messages,
+        { role: 'user', content: 'Analisar planilha: ' + file.name },
+        { role: 'assistant', content: report, provider: 'Análise de planilhas • ScorpionAI' },
+      ];
+      setMessages(updatedMessages);
+      setCurrentProvider('Análise de planilhas • ScorpionAI');
+      await persistConversation(chatId, updatedMessages);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Falha ao analisar a planilha.');
+    } finally {
+      setSpreadsheetLoading(false);
+      setLoading(false);
     }
   };
 
@@ -1329,21 +1377,56 @@ export default function Home() {
         <div className="p-3 sm:p-6 bg-[#0a0c10] border-t border-gray-800/60 shrink-0">
           <div className="max-w-3xl mx-auto relative">
             {pendingImage && (
-              <div className="mb-3 inline-flex items-start gap-3 rounded-xl border border-gray-700 bg-[#141720] p-2">
-                <img src={pendingImage} alt="Prévia da imagem anexada" className="h-20 w-20 rounded-lg object-cover" />
-                <div className="flex flex-col gap-2 text-xs text-gray-300">
-                  <span>Imagem pronta para análise</span>
-                  <button type="button" onClick={() => setPendingImage(null)} className="text-left text-red-400 hover:text-red-300">Remover imagem</button>
-                </div>
-              </div>
-            )}
-            <div className="relative">
-            <input
-              ref={imageInputRef}
-              type="file"
-              accept="image/png,image/jpeg,image/webp,image/gif"
-              className="hidden"
-              onChange={(e) => { void handleImageFile(e.target.files?.[0]); e.currentTarget.value = ''; }}
+              <div className="mb-3 inline-f            <button
+              type="button"
+              onClick={isListening ? stopListening : startListening}
+              disabled={loading || !authUser}
+              aria-label={isListening ? 'Parar gravação' : 'Falar com ScorpionAI'}
+              title={isListening ? 'Parar gravação' : 'Falar com ScorpionAI'}
+              className={`absolute right-[12.5rem] bottom-3 w-10 h-10 flex items-center justify-center ${isListening ? 'bg-red-700 animate-pulse' : 'bg-[#252a36] hover:bg-[#303747]'} disabled:opacity-50 text-gray-200 rounded-xl transition-all`}
+            >
+              {isListening ? (
+                <svg viewBox="0 0 24 24" className="w-5 h-5" fill="currentColor" aria-hidden="true">
+                  <rect x="6" y="6" width="12" height="12" rx="2" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <rect x="9" y="2" width="6" height="12" rx="3" />
+                  <path d="M5 10a7 7 0 0 0 14 0M12 17v5m-4 0h8" />
+                </svg>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => imageInputRef.current?.click()}
+              disabled={loading || !authUser}
+              aria-label="Anexar imagem"
+              title="Anexar imagem"
+              className="absolute right-[9.5rem] bottom-3 w-10 h-10 flex items-center justify-center bg-[#252a36] hover:bg-[#303747] disabled:opacity-50 text-gray-200 rounded-xl transition-all"
+            >
+              <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <rect x="3" y="3" width="18" height="18" rx="3" />
+                <circle cx="8.5" cy="8.5" r="1.5" />
+                <path d="m21 15-5-5L5 21" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              onClick={() => spreadsheetInputRef.current?.click()}
+              disabled={loading || !authUser}
+              aria-label="Analisar planilha CSV ou Excel"
+              title="Analisar planilha CSV ou Excel"
+              className="absolute right-[6.5rem] bottom-3 w-10 h-10 flex items-center justify-center bg-[#252a36] hover:bg-[#303747] disabled:opacity-50 text-gray-200 rounded-xl transition-all"
+            >
+              <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+                <path d="M3 9h18M3 15h18M9 3v18m6-18v18" />
+              </svg>
+            </button>
+
+en"
+              onChange={(e) => { void handleSpreadsheetFile(e.target.files?.[0]); e.currentTarget.value = ''; }}
             />
             <textarea
               value={input}
