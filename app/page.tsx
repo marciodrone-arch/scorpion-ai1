@@ -586,7 +586,7 @@ export default function Home() {
           const { value, done } = await reader.read();
           if (done) break;
           buffer += decoder.decode(value, { stream: true });
-          const events = buffer.split(/\\r?\\n/);
+          const events = buffer.split(/\r?\n/);
           buffer = events.pop() || '';
 
           for (const line of events) {
