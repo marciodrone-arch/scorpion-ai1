@@ -562,15 +562,72 @@ export default function Home() {
             ...(item.imageUrl ? { imageUrl: item.imageUrl } : {}),
           })),
           persona: personaOverride ?? persona,
+          stream: true,
         }),
       });
 
-      const data = await res.json();
+      let data: any = {};
+      let streamedText = '';
+      const isEventStream = (res.headers.get('content-type') || '').includes('text/event-stream');
 
       if (!res.ok) {
-        throw new Error(
-          data.reply || data.error || 'Falha ao processar a mensagem.'
-        );
+        data = await res.json().catch(() => ({}));
+        throw new Error(data.reply || data.error || 'Falha ao processar a mensagem.');
+      }
+
+      if (isEventStream && res.body) {
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        const streamProvider = 'Cloudflare Workers AI';
+        setMessages([...newMessages, { role: 'assistant', content: '', provider: streamProvider }]);
+
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const events = buffer.split(/\r?\n/);
+          buffer = events.pop() || '';
+
+          for (const line of events) {
+            if (!line.startsWith('data:')) continue;
+            const payload = line.slice(5).trim();
+            if (!payload || payload === '[DONE]') continue;
+            let chunk: any;
+            try { chunk = JSON.parse(payload); } catch { continue; }
+            if (chunk.error || chunk.errors?.length) {
+              throw new Error(chunk.error?.message || chunk.errors?.[0]?.message || 'A geração da resposta foi interrompida.');
+            }
+            const token = typeof chunk.response === 'string'
+              ? chunk.response
+              : typeof chunk.result?.response === 'string'
+                ? chunk.result.response
+                : typeof chunk.choices?.[0]?.delta?.content === 'string'
+                  ? chunk.choices[0].delta.content
+                  : typeof chunk.choices?.[0]?.text === 'string'
+                    ? chunk.choices[0].text
+                    : '';
+            if (token) {
+              streamedText += token;
+              setMessages([...newMessages, { role: 'assistant', content: removeDecorativeEmojis(streamedText), provider: streamProvider }]);
+            }
+          }
+        }
+        const finalBuffer = buffer.trim();
+        if (finalBuffer.startsWith('data:')) {
+          const payload = finalBuffer.slice(5).trim();
+          if (payload && payload !== '[DONE]') {
+            try {
+              const chunk = JSON.parse(payload);
+              const token = typeof chunk.response === 'string' ? chunk.response : '';
+              if (token) streamedText += token;
+            } catch { /* Ignora apenas o fragmento final incompleto. */ }
+          }
+        }
+        if (!streamedText.trim()) throw new Error('O ScorpionAI não recebeu texto do modelo. Tente novamente.');
+        data = { reply: streamedText, provider: streamProvider };
+      } else {
+        data = await res.json();
       }
 
       const assistantMessage: Message = {

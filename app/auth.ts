@@ -7,7 +7,16 @@ const vercelUrl = process.env.VERCEL_URL
   ? `https://${process.env.VERCEL_URL}`
   : undefined;
 
+// Preview deployments must use their own Vercel hostname for Better Auth.
+ // Keep the configured canonical URL unchanged in production.
+const isPreviewDeployment = process.env.VERCEL_ENV === "preview";
+
+// Stable branch URL used to open this preview in the browser.
+const previewBranchUrl =
+  "https://scorpion-ai1-git-android-pwa-prep-scorpin-ia.vercel.app";
+
 const appUrl =
+  (isPreviewDeployment && previewBranchUrl) ||
   process.env.BETTER_AUTH_URL ||
   process.env.NEXT_PUBLIC_APP_URL ||
   vercelUrl ||
@@ -17,6 +26,7 @@ const trustedOrigins = [
   appUrl,
   process.env.NEXT_PUBLIC_APP_URL,
   vercelUrl,
+  ...(isPreviewDeployment ? [previewBranchUrl] : []),
 ].filter((origin): origin is string => Boolean(origin));
 
 export const auth = betterAuth({

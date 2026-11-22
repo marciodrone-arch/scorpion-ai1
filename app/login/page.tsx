@@ -34,10 +34,27 @@ export default function LoginPage() {
         body: JSON.stringify(body),
       });
 
-      const data = await response.json();
+      const responseText = await response.text();
+      let data: any = {};
+      try {
+        data = responseText ? JSON.parse(responseText) : {};
+      } catch {
+        data = { message: responseText.slice(0, 500) };
+      }
 
       if (!response.ok) {
-        throw new Error(data.message || data.error || 'Não foi possível concluir.');
+        const detail =
+          data.message ||
+          data.error ||
+          (typeof data.message === 'string' ? data.message : '') ||
+          'O servidor não informou o motivo.';
+        throw new Error(`Falha HTTP ${response.status}: ${detail}`);
+      }
+
+      if (!data || typeof data !== 'object' || (!data.token && !data.user)) {
+        throw new Error(
+          `O servidor respondeu HTTP ${response.status}, mas não confirmou a sessão. Resposta: ${responseText.slice(0, 300) || '(vazia)'}`
+        );
       }
 
       setMessage(

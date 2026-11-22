@@ -432,10 +432,7 @@ async function askCloudflareVision(messages: ChatMessage[], persona: string, ima
     if (!response.ok || data?.success === false) {
       throw new Error(`Cloudflare Vision HTTP ${response.status}: ${data?.errors?.[0]?.message || data?.error?.message || "Erro na API"}`);
     }
-    const reply =
-      (typeof data?.result?.response === "string" ? data.result.response : "") ||
-      (typeof data?.choices?.[0]?.message?.content === "string" ? data.choices[0].message.content : "") ||
-      (typeof data?.result?.choices?.[0]?.message?.content === "string" ? data.result.choices[0].message.content : "");
+    const reply = extractCloudflareText(data);
     if (!reply.trim()) throw new Error("O modelo de visão não retornou texto.");
     return { reply, provider: "Cloudflare Workers AI • Vision", model };
   } catch (error) {
@@ -446,7 +443,32 @@ async function askCloudflareVision(messages: ChatMessage[], persona: string, ima
   }
 }
 
-async function askCloudflare(messages: ChatMessage[], persona: string) {
+function extractCloudflareText(data: any): string {
+  const candidates = [
+    data?.result?.response,
+    data?.result?.choices?.[0]?.message?.content,
+    data?.choices?.[0]?.message?.content,
+    data?.result?.output_text,
+    data?.output_text,
+    data?.result?.generated_text,
+    data?.generated_text,
+    data?.result?.text,
+    data?.text,
+  ];
+  for (const value of candidates) {
+    if (typeof value === "string" && value.trim()) return value;
+    if (Array.isArray(value)) {
+      const text = value
+        .map((part: any) => typeof part === "string" ? part : typeof part?.text === "string" ? part.text : "")
+        .filter(Boolean)
+        .join("\\n");
+      if (text.trim()) return text;
+    }
+  }
+  return "";
+}
+
+async function askCloudflare(messages: ChatMessage[], persona: string, streamResponse = false) {
   const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
   const apiToken = process.env.CLOUDFLARE_API_TOKEN;
 
@@ -454,8 +476,10 @@ async function askCloudflare(messages: ChatMessage[], persona: string) {
     throw new Error("CLOUDFLARE_ACCOUNT_ID ou CLOUDFLARE_API_TOKEN não configurada.");
   }
 
-  const model = "@cf/zai-org/glm-4.7-flash";
-  const timeout = withTimeout(25000);
+  const model = "@cf/google/gemma-4-26b-a4b-it";
+  // Allow transient Cloudflare latency without exceeding the Vercel route budget.
+  const timeout = withTimeout(50000);
+  let streamOwnsTimeout = false;
 
   try {
     const response = await fetch(
@@ -472,7 +496,7 @@ async function askCloudflare(messages: ChatMessage[], persona: string) {
               role: "system",
               content: [
                 SYSTEM_PROMPT,
-                `Especialidade selecionada: ${persona}.`,
+                `Especialidade selecionada: ${persona}. Responda sempre de forma completa, terminando frases e listas; nunca interrompa uma resposta no meio de uma frase. Para pedidos simples, seja objetivo, mas entregue todos os passos necessários.`,
                 persona === "Atendimento Empresarial"
                   ? [
                       "Você é um assistente de atendimento empresarial para profissionais autônomos, pequenos comerciantes e empresas.",
@@ -512,25 +536,54 @@ async function askCloudflare(messages: ChatMessage[], persona: string) {
                 .filter(Boolean)
                 .join("\n"),
             },
-            ...messages.map((item) => ({ role: item.role, content: item.content })),
+            ...messages.slice(-10).map((item) => ({ role: item.role, content: item.content })),
           ],
-          max_completion_tokens: persona === "Criador de documentos" ? 2400 : 1200,
-          chat_template_kwargs: { enable_thinking: false },
+          max_completion_tokens: persona === "Criador de documentos" ? 2200 : 1600,
+          ...(streamResponse ? { stream: true } : {}),
         }),
         signal: timeout.signal,
         cache: "no-store",
       }
     );
 
+    if (!response.ok) {
+      const errorData = await readResponse(response);
+      throw new Error(`Cloudflare Workers AI HTTP ${response.status}: ${errorData?.errors?.[0]?.message || errorData?.error?.message || "Erro na API"}`);
+    }
+
+    const contentType = response.headers.get("content-type") || "";
+    if (streamResponse && contentType.includes("text/event-stream") && response.body) {
+      const reader = response.body.getReader();
+      const forwardedStream = new ReadableStream<Uint8Array>({
+        async pull(controller) {
+          try {
+            const chunk = await reader.read();
+            if (chunk.done) {
+              timeout.clear();
+              controller.close();
+            } else {
+              controller.enqueue(chunk.value);
+            }
+          } catch (error) {
+            timeout.clear();
+            controller.error(error);
+          }
+        },
+        async cancel(reason) {
+          timeout.clear();
+          await reader.cancel(reason);
+        },
+      });
+      streamOwnsTimeout = true;
+      return { stream: forwardedStream, provider: "Cloudflare Workers AI", model };
+    }
+
     const data = await readResponse(response);
-    if (!response.ok || data?.success === false) {
+    if (data?.success === false) {
       throw new Error(`Cloudflare Workers AI HTTP ${response.status}: ${data?.errors?.[0]?.message || data?.error?.message || "Erro na API"}`);
     }
 
-    const reply =
-      (typeof data?.result?.response === "string" ? data.result.response : "") ||
-      (typeof data?.choices?.[0]?.message?.content === "string" ? data.choices[0].message.content : "") ||
-      (typeof data?.result?.choices?.[0]?.message?.content === "string" ? data.result.choices[0].message.content : "");
+    const reply = extractCloudflareText(data);
 
     if (!reply.trim()) {
       console.error("[ScorpionAI] Formato inesperado da resposta Cloudflare:", JSON.stringify(data).slice(0, 1500));
@@ -551,10 +604,10 @@ async function askCloudflare(messages: ChatMessage[], persona: string) {
 
     return { reply: cleanReply, provider: "Cloudflare Workers AI", model };
   } catch (error) {
-    if (timeout.signal.aborted) throw new Error("Cloudflare Workers AI: tempo limite de 25 segundos excedido.");
+    if (timeout.signal.aborted) throw new Error("Cloudflare Workers AI: tempo limite de 50 segundos excedido.");
     throw error;
   } finally {
-    timeout.clear();
+    if (!streamOwnsTimeout) timeout.clear();
   }
 }
 
@@ -949,8 +1002,17 @@ export async function POST(req: Request) {
     }
 
     try {
-      const result = await askCloudflare(messages, persona);
+      const result = await askCloudflare(messages, persona, body?.stream === true);
       console.info("[ScorpionAI] Resposta recebida:", result.provider, result.model);
+      if ("stream" in result && result.stream) {
+        return new Response(result.stream, {
+          headers: {
+            "Content-Type": "text/event-stream; charset=utf-8",
+            "Cache-Control": "no-cache, no-transform",
+            "X-Accel-Buffering": "no",
+          },
+        });
+      }
       return NextResponse.json(result);
     } catch (error) {
       const detail = error instanceof Error ? error.message : "Falha no serviço de inteligência artificial.";
