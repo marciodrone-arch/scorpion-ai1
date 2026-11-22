@@ -454,7 +454,7 @@ async function askCloudflare(messages: ChatMessage[], persona: string) {
     throw new Error("CLOUDFLARE_ACCOUNT_ID ou CLOUDFLARE_API_TOKEN não configurada.");
   }
 
-  const model = "@cf/meta/llama-3.1-8b-instruct-fp8";
+  const model = "@cf/google/gemma-4-26b-a4b-it";
   // Allow transient Cloudflare latency without exceeding the Vercel route budget.
   const timeout = withTimeout(50000);
 
@@ -515,7 +515,7 @@ async function askCloudflare(messages: ChatMessage[], persona: string) {
             },
             ...messages.slice(-10).map((item) => ({ role: item.role, content: item.content })),
           ],
-          max_tokens: persona === "Criador de documentos" ? 1200 : 700,
+          max_completion_tokens: persona === "Criador de documentos" ? 1200 : 700,
         }),
         signal: timeout.signal,
         cache: "no-store",
