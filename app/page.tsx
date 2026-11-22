@@ -582,16 +582,21 @@ export default function Home() {
         const streamProvider = 'Cloudflare Workers AI';
         setMessages([...newMessages, { role: 'assistant', content: '', provider: streamProvider }]);
 
-        const processStreamLine = (rawLine: string) => {
-          const line = rawLine.replace(/\r$/, '');
-          if (!line.startsWith('data:')) return;
-          const payload = line.slice(5).trim();
+        const processStreamEvent = (rawEvent: string) => {
+          const dataLines = rawEvent
+            .split(/\r?\n/)
+            .filter((line) => line.startsWith('data:'))
+            .map((line) => line.slice(5).trim());
+          if (!dataLines.length) return;
+
+          const payload = dataLines.join('\n').trim();
           if (!payload || payload === '[DONE]') return;
 
           let chunk: any;
           try {
             chunk = JSON.parse(payload);
           } catch {
+            console.error('[ScorpionAI] Evento SSE inválido:', payload.slice(0, 500));
             throw new Error('A transmissão da resposta chegou em formato inválido.');
           }
 
@@ -620,17 +625,19 @@ export default function Home() {
           if (done) break;
 
           buffer += decoder.decode(value, { stream: true });
-          let newlineIndex = buffer.indexOf('\n');
-          while (newlineIndex !== -1) {
-            processStreamLine(buffer.slice(0, newlineIndex));
-            buffer = buffer.slice(newlineIndex + 1);
-            newlineIndex = buffer.indexOf('\n');
+          let eventBoundary = buffer.search(/\r?\n\r?\n/);
+          while (eventBoundary !== -1) {
+            const event = buffer.slice(0, eventBoundary);
+            const boundaryLength = buffer.slice(eventBoundary).match(/^\r?\n\r?\n/)?.[0].length || 2;
+            processStreamEvent(event);
+            buffer = buffer.slice(eventBoundary + boundaryLength);
+            eventBoundary = buffer.search(/\r?\n\r?\n/);
           }
         }
 
-        // Processa também os bytes finais do decoder e a última linha, mesmo sem quebra de linha.
+        // Finaliza UTF-8 e processa o último evento mesmo sem separador final.
         buffer += decoder.decode();
-        if (buffer.trim()) processStreamLine(buffer);
+        if (buffer.trim()) processStreamEvent(buffer);
         if (!streamedText.trim()) throw new Error('O ScorpionAI não recebeu texto do modelo. Tente novamente.');
         data = { reply: streamedText, provider: streamProvider };
       } else {
