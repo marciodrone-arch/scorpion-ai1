@@ -7,7 +7,12 @@ const vercelUrl = process.env.VERCEL_URL
   ? `https://${process.env.VERCEL_URL}`
   : undefined;
 
+// Preview deployments must use their own Vercel hostname for Better Auth.
+ // Keep the configured canonical URL unchanged in production.
+const isPreviewDeployment = process.env.VERCEL_ENV === "preview";
+
 const appUrl =
+  (isPreviewDeployment && vercelUrl) ||
   process.env.BETTER_AUTH_URL ||
   process.env.NEXT_PUBLIC_APP_URL ||
   vercelUrl ||
