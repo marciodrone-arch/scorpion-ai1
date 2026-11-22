@@ -455,7 +455,8 @@ async function askCloudflare(messages: ChatMessage[], persona: string) {
   }
 
   const model = "@cf/zai-org/glm-4.7-flash";
-  const timeout = withTimeout(25000);
+  // Allow transient Cloudflare latency without exceeding the Vercel route budget.
+  const timeout = withTimeout(50000);
 
   try {
     const response = await fetch(
@@ -512,9 +513,9 @@ async function askCloudflare(messages: ChatMessage[], persona: string) {
                 .filter(Boolean)
                 .join("\n"),
             },
-            ...messages.map((item) => ({ role: item.role, content: item.content })),
+            ...messages.slice(-10).map((item) => ({ role: item.role, content: item.content })),
           ],
-          max_completion_tokens: persona === "Criador de documentos" ? 2400 : 1200,
+          max_completion_tokens: persona === "Criador de documentos" ? 1800 : 900,
           chat_template_kwargs: { enable_thinking: false },
         }),
         signal: timeout.signal,
@@ -551,7 +552,7 @@ async function askCloudflare(messages: ChatMessage[], persona: string) {
 
     return { reply: cleanReply, provider: "Cloudflare Workers AI", model };
   } catch (error) {
-    if (timeout.signal.aborted) throw new Error("Cloudflare Workers AI: tempo limite de 25 segundos excedido.");
+    if (timeout.signal.aborted) throw new Error("Cloudflare Workers AI: tempo limite de 50 segundos excedido.");
     throw error;
   } finally {
     timeout.clear();
