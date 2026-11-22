@@ -583,7 +583,7 @@ export default function Home() {
         setMessages([...newMessages, { role: 'assistant', content: '', provider: streamProvider }]);
 
         const processStreamLine = (rawLine: string) => {
-          const line = rawLine.replace(/\\r$/, '');
+          const line = rawLine.replace(/\r$/, '');
           if (!line.startsWith('data:')) return;
           const payload = line.slice(5).trim();
           if (!payload || payload === '[DONE]') return;
@@ -620,11 +620,11 @@ export default function Home() {
           if (done) break;
 
           buffer += decoder.decode(value, { stream: true });
-          let newlineIndex = buffer.indexOf('\\n');
+          let newlineIndex = buffer.indexOf('\n');
           while (newlineIndex !== -1) {
             processStreamLine(buffer.slice(0, newlineIndex));
             buffer = buffer.slice(newlineIndex + 1);
-            newlineIndex = buffer.indexOf('\\n');
+            newlineIndex = buffer.indexOf('\n');
           }
         }
 
