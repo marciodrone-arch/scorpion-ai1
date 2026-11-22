@@ -495,7 +495,7 @@ async function askCloudflare(messages: ChatMessage[], persona: string) {
               role: "system",
               content: [
                 SYSTEM_PROMPT,
-                `Especialidade selecionada: ${persona}.`,
+                `Especialidade selecionada: ${persona}. Responda sempre de forma completa, terminando frases e listas; nunca interrompa uma resposta no meio de uma frase. Para pedidos simples, seja objetivo, mas entregue todos os passos necessários.`,
                 persona === "Atendimento Empresarial"
                   ? [
                       "Você é um assistente de atendimento empresarial para profissionais autônomos, pequenos comerciantes e empresas.",
@@ -537,7 +537,7 @@ async function askCloudflare(messages: ChatMessage[], persona: string) {
             },
             ...messages.slice(-10).map((item) => ({ role: item.role, content: item.content })),
           ],
-          max_completion_tokens: persona === "Criador de documentos" ? 1200 : 700,
+          max_completion_tokens: persona === "Criador de documentos" ? 2200 : 1600,
         }),
         signal: timeout.signal,
         cache: "no-store",
@@ -549,10 +549,7 @@ async function askCloudflare(messages: ChatMessage[], persona: string) {
       throw new Error(`Cloudflare Workers AI HTTP ${response.status}: ${data?.errors?.[0]?.message || data?.error?.message || "Erro na API"}`);
     }
 
-    const reply =
-      (typeof data?.result?.response === "string" ? data.result.response : "") ||
-      (typeof data?.choices?.[0]?.message?.content === "string" ? data.choices[0].message.content : "") ||
-      (typeof data?.result?.choices?.[0]?.message?.content === "string" ? data.result.choices[0].message.content : "");
+    const reply = extractCloudflareText(data);
 
     if (!reply.trim()) {
       console.error("[ScorpionAI] Formato inesperado da resposta Cloudflare:", JSON.stringify(data).slice(0, 1500));
