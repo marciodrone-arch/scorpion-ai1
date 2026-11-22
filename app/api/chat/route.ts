@@ -432,10 +432,7 @@ async function askCloudflareVision(messages: ChatMessage[], persona: string, ima
     if (!response.ok || data?.success === false) {
       throw new Error(`Cloudflare Vision HTTP ${response.status}: ${data?.errors?.[0]?.message || data?.error?.message || "Erro na API"}`);
     }
-    const reply =
-      (typeof data?.result?.response === "string" ? data.result.response : "") ||
-      (typeof data?.choices?.[0]?.message?.content === "string" ? data.choices[0].message.content : "") ||
-      (typeof data?.result?.choices?.[0]?.message?.content === "string" ? data.result.choices[0].message.content : "");
+    const reply = extractCloudflareText(data);
     if (!reply.trim()) throw new Error("O modelo de visão não retornou texto.");
     return { reply, provider: "Cloudflare Workers AI • Vision", model };
   } catch (error) {
@@ -444,6 +441,31 @@ async function askCloudflareVision(messages: ChatMessage[], persona: string, ima
   } finally {
     timeout.clear();
   }
+}
+
+function extractCloudflareText(data: any): string {
+  const candidates = [
+    data?.result?.response,
+    data?.result?.choices?.[0]?.message?.content,
+    data?.choices?.[0]?.message?.content,
+    data?.result?.output_text,
+    data?.output_text,
+    data?.result?.generated_text,
+    data?.generated_text,
+    data?.result?.text,
+    data?.text,
+  ];
+  for (const value of candidates) {
+    if (typeof value === "string" && value.trim()) return value;
+    if (Array.isArray(value)) {
+      const text = value
+        .map((part: any) => typeof part === "string" ? part : typeof part?.text === "string" ? part.text : "")
+        .filter(Boolean)
+        .join("\\n");
+      if (text.trim()) return text;
+    }
+  }
+  return "";
 }
 
 async function askCloudflare(messages: ChatMessage[], persona: string) {
