@@ -1004,7 +1004,7 @@ export async function POST(req: Request) {
     try {
       const result = await askCloudflare(messages, persona, body?.stream === true);
       console.info("[ScorpionAI] Resposta recebida:", result.provider, result.model);
-      if (result.stream) {
+      if ("stream" in result && result.stream) {
         return new Response(result.stream, {
           headers: {
             "Content-Type": "text/event-stream; charset=utf-8",
