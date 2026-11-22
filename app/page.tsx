@@ -582,48 +582,62 @@ export default function Home() {
         const streamProvider = 'Cloudflare Workers AI';
         setMessages([...newMessages, { role: 'assistant', content: '', provider: streamProvider }]);
 
+        const processStreamEvent = (rawEvent: string) => {
+          const dataLines = rawEvent
+            .split(/\r?\n/)
+            .filter((line) => line.startsWith('data:'))
+            .map((line) => line.slice(5).trim());
+          if (!dataLines.length) return;
+
+          const payload = dataLines.join('\n').trim();
+          if (!payload || payload === '[DONE]') return;
+
+          let chunk: any;
+          try {
+            chunk = JSON.parse(payload);
+          } catch {
+            console.error('[ScorpionAI] Evento SSE inválido:', payload.slice(0, 500));
+            throw new Error('A transmissão da resposta chegou em formato inválido.');
+          }
+
+          if (chunk.error || chunk.errors?.length) {
+            throw new Error(chunk.error?.message || chunk.errors?.[0]?.message || 'A geração da resposta foi interrompida.');
+          }
+
+          const token = typeof chunk.response === 'string'
+            ? chunk.response
+            : typeof chunk.result?.response === 'string'
+              ? chunk.result.response
+              : typeof chunk.choices?.[0]?.delta?.content === 'string'
+                ? chunk.choices[0].delta.content
+                : typeof chunk.choices?.[0]?.text === 'string'
+                  ? chunk.choices[0].text
+                  : '';
+
+          if (token) {
+            streamedText += token;
+            setMessages([...newMessages, { role: 'assistant', content: removeDecorativeEmojis(streamedText), provider: streamProvider }]);
+          }
+        };
+
         while (true) {
           const { value, done } = await reader.read();
           if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          const events = buffer.split(/\r?\n/);
-          buffer = events.pop() || '';
 
-          for (const line of events) {
-            if (!line.startsWith('data:')) continue;
-            const payload = line.slice(5).trim();
-            if (!payload || payload === '[DONE]') continue;
-            let chunk: any;
-            try { chunk = JSON.parse(payload); } catch { continue; }
-            if (chunk.error || chunk.errors?.length) {
-              throw new Error(chunk.error?.message || chunk.errors?.[0]?.message || 'A geração da resposta foi interrompida.');
-            }
-            const token = typeof chunk.response === 'string'
-              ? chunk.response
-              : typeof chunk.result?.response === 'string'
-                ? chunk.result.response
-                : typeof chunk.choices?.[0]?.delta?.content === 'string'
-                  ? chunk.choices[0].delta.content
-                  : typeof chunk.choices?.[0]?.text === 'string'
-                    ? chunk.choices[0].text
-                    : '';
-            if (token) {
-              streamedText += token;
-              setMessages([...newMessages, { role: 'assistant', content: removeDecorativeEmojis(streamedText), provider: streamProvider }]);
-            }
+          buffer += decoder.decode(value, { stream: true });
+          let eventBoundary = buffer.search(/\r?\n\r?\n/);
+          while (eventBoundary !== -1) {
+            const event = buffer.slice(0, eventBoundary);
+            const boundaryLength = buffer.slice(eventBoundary).match(/^\r?\n\r?\n/)?.[0].length || 2;
+            processStreamEvent(event);
+            buffer = buffer.slice(eventBoundary + boundaryLength);
+            eventBoundary = buffer.search(/\r?\n\r?\n/);
           }
         }
-        const finalBuffer = buffer.trim();
-        if (finalBuffer.startsWith('data:')) {
-          const payload = finalBuffer.slice(5).trim();
-          if (payload && payload !== '[DONE]') {
-            try {
-              const chunk = JSON.parse(payload);
-              const token = typeof chunk.response === 'string' ? chunk.response : '';
-              if (token) streamedText += token;
-            } catch { /* Ignora apenas o fragmento final incompleto. */ }
-          }
-        }
+
+        // Finaliza UTF-8 e processa o último evento mesmo sem separador final.
+        buffer += decoder.decode();
+        if (buffer.trim()) processStreamEvent(buffer);
         if (!streamedText.trim()) throw new Error('O ScorpionAI não recebeu texto do modelo. Tente novamente.');
         data = { reply: streamedText, provider: streamProvider };
       } else {

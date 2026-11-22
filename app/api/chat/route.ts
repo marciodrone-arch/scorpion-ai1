@@ -538,7 +538,7 @@ async function askCloudflare(messages: ChatMessage[], persona: string, streamRes
             },
             ...messages.slice(-10).map((item) => ({ role: item.role, content: item.content })),
           ],
-          max_completion_tokens: persona === "Criador de documentos" ? 2200 : 1600,
+          max_completion_tokens: persona === "Criador de documentos" ? 3500 : 3000,
           ...(streamResponse ? { stream: true } : {}),
         }),
         signal: timeout.signal,

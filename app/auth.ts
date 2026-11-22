@@ -13,7 +13,7 @@ const isPreviewDeployment = process.env.VERCEL_ENV === "preview";
 
 // Stable branch URL used to open this preview in the browser.
 const previewBranchUrl =
-  "https://scorpion-ai1-git-android-pwa-prep-scorpin-ia.vercel.app";
+  "https://scorpion-ai1-git-fix-complete-streamed-replies-scorpin-ia.vercel.app";
 
 const appUrl =
   (isPreviewDeployment && previewBranchUrl) ||
