@@ -147,7 +147,7 @@ export default function ManualOperacionalExpressPage() {
           <span className="text-xs font-bold uppercase tracking-[.2em] text-cyan-200">Acesso digital</span>
           <h2 className="mt-3 text-3xl font-black text-white sm:text-4xl">Manual Operacional Express</h2>
           <p className="mx-auto mt-4 max-w-xl text-sm leading-7 text-slate-300">Modelos e estruturas para adaptar ao seu atendimento, à sua organização e à sua comunicação comercial.</p>
-          <div className="mt-7"><span className="text-4xl font-black text-white">R$ 29,90</span><span className="ml-2 text-sm text-slate-400">pagamento único</span></div>
+          <div className="mt-7"><span className="text-4xl font-black text-white">R$ 9,99</span><span className="ml-2 text-sm text-slate-400">pagamento único</span></div>
           {checkoutUrl ? (
             <a href={checkoutUrl} target="_blank" rel="noopener noreferrer" className="mt-7 inline-flex w-full items-center justify-center rounded-xl bg-cyan-300 px-8 py-4 font-extrabold text-slate-950 transition hover:bg-cyan-200 sm:w-auto">Acessar pagamento seguro</a>
           ) : (
